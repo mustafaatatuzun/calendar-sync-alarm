@@ -40,6 +40,35 @@ android {
         debug {
             signingConfig = signingConfigs.getByName("project")
         }
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+            signingConfig = signingConfigs.getByName("project")
+        }
+    }
+
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
+    }
+
+    splits {
+        abi {
+            // ABI splits are for assembleRelease (direct APK sideload) only.
+            // When building an AAB (bundleRelease, for Play Store), AGP forbids splits —
+            // the Play Store does its own per-device slicing. Disable splits with -PnoSplits.
+            isEnable = !project.hasProperty("noSplits")
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            // Universal APK: single APK that works on any ABI, for GitHub downloads
+            // where users don't want to pick an architecture.
+            isUniversalApk = !project.hasProperty("noSplits")
+        }
     }
 
     compileOptions {
