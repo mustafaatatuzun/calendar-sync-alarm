@@ -1,0 +1,15 @@
+# Android build outputs
+**/build/
+**/.gradle/
+**/.cxx/
+local.properties
+# IntelliJ / Android Studio
+.idea/
+*.iml
+# OS cruft
+.DS_Store
+Thumbs.db
+# Keystore and secrets
+keystore.properties
+*.jks
+*.keystore
