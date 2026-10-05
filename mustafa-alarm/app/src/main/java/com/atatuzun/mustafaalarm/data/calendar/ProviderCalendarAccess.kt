@@ -88,10 +88,11 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
     override fun event(eventId: Long): EventRow? =
         queryEvents("${Events._ID}=? AND ${Events.DELETED}=0", arrayOf(eventId.toString())).firstOrNull()
 
-    override fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String): Long {
+    override fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String, description: String?): Long {
         val values = ContentValues().apply {
             put(Events.CALENDAR_ID, calendarId)
             put(Events.TITLE, title)
+            description?.let { put(Events.DESCRIPTION, it) }
             put(Events.EVENT_TIMEZONE, zone)
             put(Events.AVAILABILITY, Events.AVAILABILITY_FREE)
             put(Events.HAS_ALARM, 0)
@@ -204,6 +205,7 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
                             originalId = c.getLongOrNull(9),
                             originalInstanceTime = c.getLongOrNull(10),
                             timeZone = c.getStringOrNull(11),
+                            description = c.getStringOrNull(12),
                         ),
                     )
                 }
@@ -250,6 +252,7 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
     /** Exceptions get only DTSTART/DTEND: an RRULE or DURATION key would make the provider split the series. */
     private fun ContentValues.putPatch(patch: EventPatch, forException: Boolean) {
         patch.title?.let { put(Events.TITLE, it) }
+        patch.description?.let { put(Events.DESCRIPTION, it) }
         patch.zone?.let { put(Events.EVENT_TIMEZONE, it) }
         patch.timing?.let { timing ->
             if (forException) {
@@ -282,7 +285,7 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
         val EVENT_COLUMNS = arrayOf(
             Events._ID, Events.TITLE, Events.DTSTART, Events.DTEND, Events.DURATION, Events.RRULE,
             Events.ALL_DAY, Events.EVENT_COLOR_KEY, Events.STATUS,
-            Events.ORIGINAL_ID, Events.ORIGINAL_INSTANCE_TIME, Events.EVENT_TIMEZONE,
+            Events.ORIGINAL_ID, Events.ORIGINAL_INSTANCE_TIME, Events.EVENT_TIMEZONE, Events.DESCRIPTION,
         )
         val CALENDAR_COLUMNS = arrayOf(
             Calendars._ID, Calendars.ACCOUNT_NAME, Calendars.ACCOUNT_TYPE,

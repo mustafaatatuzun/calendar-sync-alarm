@@ -25,6 +25,7 @@ data class EventRow(
     val originalId: Long?,
     val originalInstanceTime: Long?,
     val timeZone: String?,
+    val description: String? = null,
 ) {
     val isSeries: Boolean get() = !rrule.isNullOrBlank()
     val isException: Boolean get() = originalId != null
@@ -93,4 +94,5 @@ data class EventPatch(
     val zone: String? = null,
     val color: ColorPatch? = null,
     val canceled: Boolean = false,
+    val description: String? = null,
 )

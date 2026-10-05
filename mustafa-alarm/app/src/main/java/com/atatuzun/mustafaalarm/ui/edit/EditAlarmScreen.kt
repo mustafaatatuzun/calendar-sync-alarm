@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MusicNote
@@ -54,11 +55,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -68,6 +71,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.atatuzun.mustafaalarm.AppGraph
 import com.atatuzun.mustafaalarm.domain.RecurrenceRule
 import com.atatuzun.mustafaalarm.domain.Texts
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalTime
@@ -96,6 +102,18 @@ fun EditAlarmScreen(graph: AppGraph, eventId: Long?, onDone: () -> Unit) {
         if (result.resultCode == Activity.RESULT_OK) {
             val uri = result.data?.getParcelableExtra(RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             vm.setSound(uri?.takeUnless { it == Settings.System.DEFAULT_ALARM_ALERT_URI }?.toString())
+        }
+    }
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val contactPicker = rememberLauncherForActivityResult(PickPhoneNumber()) { uri ->
+        if (uri != null) scope.launch {
+            val picked = withContext(Dispatchers.IO) {
+                runCatching { readPickedContact(context.contentResolver, uri) }
+                    .onFailure { graph.log.log("contact pick: cannot read $uri: $it") }
+                    .getOrNull()
+            }
+            if (picked != null) vm.setContact(picked) else graph.log.log("contact pick: no number in $uri")
         }
     }
 
@@ -179,6 +197,25 @@ fun EditAlarmScreen(graph: AppGraph, eventId: Long?, onDone: () -> Unit) {
                     Icon(Icons.Filled.MusicNote, contentDescription = null)
                     Spacer(Modifier.width(12.dp))
                     Text(ui.soundName)
+                }
+            }
+            OutlinedCard(
+                onClick = { runCatching { contactPicker.launch(Unit) } },
+                modifier = Modifier.fillMaxWidth().testTag("contact"),
+            ) {
+                Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Call, contentDescription = null)
+                    Spacer(Modifier.width(12.dp))
+                    val contact = ui.contact
+                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                        Text(contact?.let { "Call ${it.name}" } ?: "Add a person to call")
+                        if (contact != null) Text(contact.number, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (contact != null) {
+                        IconButton(onClick = { vm.setContact(null) }, modifier = Modifier.testTag("contact-clear")) {
+                            Icon(Icons.Filled.Close, contentDescription = "Remove person")
+                        }
+                    }
                 }
             }
             Button(onClick = vm::save, enabled = ui.isDirty, modifier = Modifier.fillMaxWidth().testTag("save")) { Text("SAVE") }

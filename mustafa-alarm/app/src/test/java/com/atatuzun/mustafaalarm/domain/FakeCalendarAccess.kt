@@ -16,10 +16,10 @@ class FakeCalendarAccess(private val defaultZone: ZoneId = ZONE) : CalendarAcces
     override fun events(calendarId: Long): List<EventRow> = events.values.toList()
     override fun event(eventId: Long): EventRow? = events[eventId]
 
-    override fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String): Long {
+    override fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String, description: String?): Long {
         checkWritable()
         val id = nextId++
-        events[id] = EventRow(id, title, timing.start, null, null, null, false, null, null, null, null, zone).withTiming(timing)
+        events[id] = EventRow(id, title, timing.start, null, null, null, false, null, null, null, null, zone, description).withTiming(timing)
         return id
     }
 
@@ -40,7 +40,7 @@ class FakeCalendarAccess(private val defaultZone: ZoneId = ZONE) : CalendarAcces
         val id = nextId++
         val base = EventRow(
             id, series.title, originalInstanceTime, originalInstanceTime + series.lengthMillis, null, null, false,
-            series.colorKey, null, seriesId, originalInstanceTime, series.timeZone,
+            series.colorKey, null, seriesId, originalInstanceTime, series.timeZone, series.description,
         )
         events[id] = base.patched(patch)
         return id
@@ -115,6 +115,7 @@ private fun EventRow.withTiming(t: EventTiming): EventRow = when (t) {
 fun EventRow.patched(p: EventPatch): EventRow {
     var e = this
     p.title?.let { e = e.copy(title = it) }
+    p.description?.let { e = e.copy(description = it) }
     p.timing?.let { e = e.withTiming(it) }
     p.zone?.let { e = e.copy(timeZone = it) }
     when (p.color) {

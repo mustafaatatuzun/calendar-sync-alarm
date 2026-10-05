@@ -12,7 +12,7 @@ interface CalendarAccess {
 
     fun event(eventId: Long): EventRow?
 
-    fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String): Long
+    fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String, description: String? = null): Long
 
     fun updateEvent(eventId: Long, patch: EventPatch)
 

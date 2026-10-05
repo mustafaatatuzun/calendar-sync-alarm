@@ -142,14 +142,16 @@ class RingingService : Service() {
         }
         val action = intent?.action ?: ACTION_RESUME
         val keys = intent?.getStringArrayListExtra(EXTRA_KEYS)?.map(::parseKey)
-        executor.execute { handle(action, keys) }
+        val text = intent?.getStringExtra(EXTRA_TEXT)
+        executor.execute { handle(action, keys, text) }
         return START_STICKY
     }
 
-    private fun handle(action: String, keys: List<InstanceKey>?) {
+    private fun handle(action: String, keys: List<InstanceKey>?, text: String? = null) {
         try {
             when (action) {
                 ACTION_FIRE -> fire()
+                ACTION_RENAME -> rename(keys, text.orEmpty())
                 ACTION_SNOOZE, ACTION_TOMORROW -> act(action, keys)
                 ACTION_STOP -> if (keys == null) { stopCounter.press(); return } else act(action, keys)
                 ACTION_DELETE -> { deleteCounter.press(); return }
@@ -190,6 +192,14 @@ class RingingService : Service() {
         }
         graph.local.removeRinging(ringing.map { it.key })
         graph.scheduler.reschedule("auto-snooze")
+    }
+
+    /** Keeps ringing; only the message changes, in the calendar and on the screen/notification. */
+    private fun rename(keys: List<InstanceKey>?, text: String) {
+        val key = keys?.singleOrNull() ?: return
+        val title = graph.store.rename(key, text) ?: return
+        graph.local.addRinging(graph.local.ringing().filter { it.key == key }.map { it.copy(title = title) })
+        graph.scheduler.reschedule("rename")
     }
 
     private fun act(action: String, keys: List<InstanceKey>?) {
@@ -338,8 +348,10 @@ class RingingService : Service() {
         const val ACTION_STOP = "com.atatuzun.mustafaalarm.STOP"
         const val ACTION_DELETE = "com.atatuzun.mustafaalarm.DELETE"
         const val ACTION_AUTO_SNOOZE = "com.atatuzun.mustafaalarm.AUTO_SNOOZE"
+        const val ACTION_RENAME = "com.atatuzun.mustafaalarm.RENAME"
         private const val ACTION_RESUME = "com.atatuzun.mustafaalarm.RESUME"
         private const val EXTRA_KEYS = "keys"
+        private const val EXTRA_TEXT = "text"
 
         @Volatile
         var isRunning = false
@@ -355,9 +367,10 @@ class RingingService : Service() {
         }
 
         /** [keys] null = every ringing alarm. */
-        fun command(context: Context, action: String, keys: List<InstanceKey>? = null) {
+        fun command(context: Context, action: String, keys: List<InstanceKey>? = null, text: String? = null) {
             val intent = Intent(context, RingingService::class.java).setAction(action)
             keys?.let { list -> intent.putStringArrayListExtra(EXTRA_KEYS, ArrayList(list.map { "${it.eventId}:${it.begin}" })) }
+            text?.let { intent.putExtra(EXTRA_TEXT, it) }
             if (isRunning) context.startService(intent) else context.startForegroundService(intent)
         }
 

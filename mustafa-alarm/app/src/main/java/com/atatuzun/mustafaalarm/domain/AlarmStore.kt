@@ -14,6 +14,7 @@ data class AlarmInput(
     val recurrence: RecurrenceRule,
     val message: String,
     val soundUri: String?,
+    val contact: AlarmContact? = null,
 )
 
 sealed interface SaveResult {
@@ -33,6 +34,7 @@ data class AlarmDetails(
     val message: String,
     val soundUri: String?,
     val on: Boolean,
+    val contact: AlarmContact? = null,
 )
 
 /** Domain operations on alarms; the calendar is the source of truth (spec §4, §6). Blocking — call off the main thread. */
@@ -53,7 +55,8 @@ class AlarmStore(
         if (input.recurrence is RecurrenceRule.Yearly && input.date == null) return SaveResult.NeedsDateForYearly
         val timing = timingFor(input, now, DEFAULT_LENGTH_MINUTES * MINUTE) ?: return SaveResult.TimeInPast
         val title = titleOf(input.message)
-        val id = calendar.insertEvent(calId, title, timing, zone.id)
+        val description = input.contact?.let { ContactLine.write(null, it) }
+        val id = calendar.insertEvent(calId, title, timing, zone.id, description)
         input.soundUri?.let { local.setSound(id, it) }
         if (recordHistory) local.recordCreation(input.time.hour * 60 + input.time.minute, now)
         log("created eventId=$id '$title'")
@@ -78,6 +81,7 @@ class AlarmStore(
             message = e.title,
             soundUri = local.soundFor(e.id),
             on = !e.isOff,
+            contact = ContactLine.read(e.description),
         )
     }
 
@@ -94,7 +98,11 @@ class AlarmStore(
         }
         calendar.updateEvent(
             eventId,
-            EventPatch(title = titleOf(input.message), timing = timing, zone = zone.id, color = ColorPatch.DEFAULT),
+            EventPatch(
+                title = titleOf(input.message), timing = timing, zone = zone.id, color = ColorPatch.DEFAULT,
+                description = if (ContactLine.read(event.description) == input.contact) null
+                else ContactLine.write(event.description, input.contact),
+            ),
         )
         local.setSound(eventId, input.soundUri)
         log("updated alarm $eventId")
@@ -140,6 +148,27 @@ class AlarmStore(
             zone,
         )
         return AlarmListState.Ready(sections, sections.flatMap { it.items }.mapNotNull { it.nextRing }.minOrNull())
+    }
+
+    /**
+     * Changes the message of a ringing occurrence. A moved (snoozed) occurrence is its own exception event,
+     * so both it and its series are renamed. Returns the saved title, or null if the alarm is gone.
+     */
+    fun rename(key: InstanceKey, message: String): String? {
+        val event = calendar.event(key.eventId) ?: return null
+        val title = titleOf(message)
+        calendar.updateEvent(event.id, EventPatch(title = title))
+        event.originalId?.let { calendar.updateEvent(it, EventPatch(title = title)) }
+        log("renamed alarm ${event.originalId ?: event.id} to '$title'")
+        return title
+    }
+
+    /** The person to call for a ringing occurrence; null when none is set or the calendar can't be read yet. */
+    fun contactFor(key: InstanceKey): AlarmContact? {
+        if (!calendarAvailable()) return null
+        val event = calendar.event(key.eventId) ?: return null
+        return ContactLine.read(event.description)
+            ?: event.originalId?.let { ContactLine.read(calendar.event(it)?.description) }
     }
 
     // ---- ringing actions (spec §6.1) -------------------------------------------------------

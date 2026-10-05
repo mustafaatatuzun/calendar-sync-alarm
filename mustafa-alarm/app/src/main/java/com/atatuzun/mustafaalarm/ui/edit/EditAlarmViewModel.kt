@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.atatuzun.mustafaalarm.AppGraph
+import com.atatuzun.mustafaalarm.domain.AlarmContact
 import com.atatuzun.mustafaalarm.domain.AlarmInput
 import com.atatuzun.mustafaalarm.domain.AlarmKind
 import com.atatuzun.mustafaalarm.domain.AlarmStore
@@ -30,6 +31,7 @@ data class EditSnapshot(
     val date: LocalDate?,
     val message: String,
     val soundUri: String?,
+    val contact: AlarmContact? = null,
 )
 
 data class EditUi(
@@ -42,6 +44,7 @@ data class EditUi(
     val message: String = "",
     val soundUri: String? = null,
     val soundName: String = "Default",
+    val contact: AlarmContact? = null,
     val otherRepeat: Boolean = false,
     val use24h: Boolean = true,
     val error: String? = null,
@@ -61,7 +64,8 @@ data class EditUi(
                 recurrence != s.recurrence ||
                 date != s.date ||
                 message != s.message ||
-                soundUri != s.soundUri
+                soundUri != s.soundUri ||
+                contact != s.contact
         }
 }
 
@@ -120,6 +124,7 @@ class EditAlarmViewModel(
                         date = details.date,
                         message = message,
                         soundUri = details.soundUri,
+                        contact = details.contact,
                     )
                     EditUi(
                         loading = false,
@@ -131,6 +136,7 @@ class EditAlarmViewModel(
                         message = message,
                         soundUri = details.soundUri,
                         soundName = soundNameFn(details.soundUri),
+                        contact = details.contact,
                         otherRepeat = details.kind == AlarmKind.OTHER_REPEAT,
                         use24h = use24h,
                         snapshot = snapshot,
@@ -188,6 +194,8 @@ class EditAlarmViewModel(
 
     fun setMessage(message: String) = mutable.update { it.copy(message = message) }
 
+    fun setContact(contact: AlarmContact?) = mutable.update { it.copy(contact = contact) }
+
     fun clearError() = mutable.update { it.copy(error = null) }
 
     fun setSound(uri: String?) {
@@ -202,7 +210,7 @@ class EditAlarmViewModel(
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    val input = AlarmInput(s.time, s.date, s.recurrence, s.message, s.soundUri)
+                    val input = AlarmInput(s.time, s.date, s.recurrence, s.message, s.soundUri, s.contact)
                     val saved = if (eventId == null) store.create(input) else store.update(eventId, input)
                     if (saved is SaveResult.Saved) rescheduleFn(if (eventId == null) "create" else "edit")
                     saved

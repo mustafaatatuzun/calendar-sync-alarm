@@ -4,19 +4,29 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -32,10 +42,12 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.atatuzun.mustafaalarm.data.settings.AlarmSettings
 import com.atatuzun.mustafaalarm.data.settings.StopMethod
+import com.atatuzun.mustafaalarm.domain.AlarmContact
 import com.atatuzun.mustafaalarm.domain.InstanceKey
 import com.atatuzun.mustafaalarm.domain.RingingEntry
 import com.atatuzun.mustafaalarm.domain.Texts
@@ -49,7 +61,18 @@ fun RingingScreen(
     settings: AlarmSettings,
     onAll: (String) -> Unit,
     onOne: (String, InstanceKey) -> Unit,
+    contacts: Map<InstanceKey, AlarmContact> = emptyMap(),
+    onRename: (InstanceKey, String) -> Unit = { _, _ -> },
+    onCall: (AlarmContact) -> Unit = {},
 ) {
+    var editing by remember { mutableStateOf<RingingEntry?>(null) }
+    editing?.let { entry ->
+        EditMessageDialog(
+            initial = entry.title,
+            onSave = { text -> onRename(entry.key, text); editing = null },
+            onDismiss = { editing = null },
+        )
+    }
     val zone = ZoneId.systemDefault()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
@@ -72,8 +95,25 @@ fun RingingScreen(
                         modifier = Modifier.fillMaxWidth().testTag("ring-row-${entry.key.eventId}"),
                     ) {
                         Column(Modifier.padding(16.dp)) {
-                            Text(entry.title, style = MaterialTheme.typography.headlineSmall, softWrap = true)
-                            Text(Texts.clock(entry.ringAt, zone, settings.use24Hour), style = MaterialTheme.typography.bodyMedium)
+                            Row(verticalAlignment = Alignment.Top) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(entry.title, style = MaterialTheme.typography.headlineSmall, softWrap = true)
+                                    Text(Texts.clock(entry.ringAt, zone, settings.use24Hour), style = MaterialTheme.typography.bodyMedium)
+                                }
+                                IconButton(onClick = { editing = entry }, modifier = Modifier.testTag("ring-edit-${entry.key.eventId}")) {
+                                    Icon(Icons.Filled.Edit, contentDescription = "Edit message")
+                                }
+                            }
+                            contacts[entry.key]?.let { contact ->
+                                Button(
+                                    onClick = { onCall(contact) },
+                                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(56.dp).testTag("ring-call-${entry.key.eventId}"),
+                                ) {
+                                    Icon(Icons.Filled.Call, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Call ${contact.name}", fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
                             if (expanded == entry.key) {
                                 Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                     if (settings.showSnoozeButton) {
@@ -99,6 +139,26 @@ fun RingingScreen(
             ) { onAll(RingingService.ACTION_DELETE) }
         }
     }
+}
+
+@Composable
+private fun EditMessageDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        modifier = Modifier.semantics { testTagsAsResourceId = true },
+        onDismissRequest = onDismiss,
+        title = { Text("Alarm message") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                modifier = Modifier.fillMaxWidth().testTag("ring-edit-text"),
+                minLines = 2,
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }, modifier = Modifier.testTag("ring-edit-save")) { Text("Save") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
 
 @Composable

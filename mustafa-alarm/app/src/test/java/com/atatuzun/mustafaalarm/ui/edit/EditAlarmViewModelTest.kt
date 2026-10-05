@@ -1,10 +1,13 @@
 package com.atatuzun.mustafaalarm.ui.edit
 
+import com.atatuzun.mustafaalarm.domain.AlarmContact
+import com.atatuzun.mustafaalarm.domain.AlarmInput
 import com.atatuzun.mustafaalarm.domain.AlarmStore
 import com.atatuzun.mustafaalarm.domain.FakeCalendarAccess
 import com.atatuzun.mustafaalarm.domain.FakeCalendarAccess.Companion.CAL
 import com.atatuzun.mustafaalarm.domain.InMemoryLocalStore
 import com.atatuzun.mustafaalarm.domain.RecurrenceRule
+import com.atatuzun.mustafaalarm.domain.SaveResult
 import com.atatuzun.mustafaalarm.domain.TestClock
 import com.atatuzun.mustafaalarm.domain.t
 import kotlinx.coroutines.Dispatchers
@@ -16,9 +19,13 @@ import org.junit.After
 import org.junit.Before
 import org.junit.Test
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class EditAlarmViewModelTest {
@@ -89,19 +96,41 @@ class EditAlarmViewModelTest {
         assertEquals(null, vm.ui.value.date)
     }
 
-    private fun newVm(): EditAlarmViewModel {
+    @Test fun `editing loads the contact, and changing it is a saveable edit`() {
         val cal = FakeCalendarAccess()
-        val local = InMemoryLocalStore()
-        val clock = TestClock(t("2026-10-03T09:00"))
-        val store = AlarmStore(cal, local, clock, { CAL }, { 30 }, { true })
-        return EditAlarmViewModel(
+        val store = storeOn(cal)
+        val id = (store.create(AlarmInput(LocalTime.of(11, 0), null, RecurrenceRule.Once, "Call", null, ahmet)) as SaveResult.Saved).eventId
+        val vm = newVm(store, id)
+        assertEquals(ahmet, vm.ui.value.contact)
+        assertFalse(vm.ui.value.isDirty)
+
+        vm.setContact(null)
+        assertTrue(vm.ui.value.isDirty)
+        vm.save()
+        assertNull(store.details(id)!!.contact)
+    }
+
+    @Test fun `a new alarm saves the picked contact`() {
+        val cal = FakeCalendarAccess()
+        val vm = newVm(storeOn(cal))
+        vm.setContact(ahmet)
+        vm.save()
+        assertEquals("Call: Ahmet Yılmaz | +90 532 123 45 67", cal.events.values.single().description)
+    }
+
+    private val ahmet = AlarmContact("Ahmet Yılmaz", "+90 532 123 45 67")
+
+    private fun storeOn(cal: FakeCalendarAccess) =
+        AlarmStore(cal, InMemoryLocalStore(), TestClock(t("2026-10-03T09:00")), { CAL }, { 30 }, { true })
+
+    private fun newVm(store: AlarmStore = storeOn(FakeCalendarAccess()), eventId: Long? = null): EditAlarmViewModel =
+        EditAlarmViewModel(
             store = store,
             use24hFn = { false },
             rescheduleFn = {},
             logFn = {},
             soundNameFn = { _ -> "Default" },
-            eventId = null,
+            eventId = eventId,
             ioDispatcher = testDispatcher,
         )
-    }
 }
