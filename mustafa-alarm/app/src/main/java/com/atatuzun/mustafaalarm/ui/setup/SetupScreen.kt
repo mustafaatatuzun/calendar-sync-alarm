@@ -130,6 +130,8 @@ fun SetupScreen(graph: AppGraph, onDone: () -> Unit) {
                             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                         SetupStep.FULL_SCREEN ->
                             activity.startActivity(graph.checks.fixIntent(Check.FULL_SCREEN))
+                        SetupStep.OVER_OTHER_APPS ->
+                            activity.startActivity(graph.checks.fixIntent(Check.OVER_OTHER_APPS))
                         SetupStep.BATTERY ->
                             activity.startActivity(graph.checks.fixIntent(Check.BATTERY))
                     }

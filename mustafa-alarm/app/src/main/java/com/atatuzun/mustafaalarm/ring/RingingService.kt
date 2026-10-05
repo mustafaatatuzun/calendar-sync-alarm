@@ -281,7 +281,9 @@ class RingingService : Service() {
             // auto-invokes when the device is LOCKED. When unlocked (home screen, in-app, or on
             // Mustafa Alarm itself), Android deliberately falls back to a heads-up notification —
             // the user has to tap it to open the ringing screen. For an alarm we want full-screen
-            // regardless of device state, so launch RingingActivity directly here.
+            // regardless of device state, so launch RingingActivity directly here. Android blocks this
+            // launch silently (no exception) unless the app may draw over other apps.
+            graph.log.log("ringing: open screen (overOtherApps=${Settings.canDrawOverlays(this)})")
             runCatching {
                 startActivity(
                     Intent(this, RingingActivity::class.java)

@@ -25,6 +25,7 @@ enum class Check(val label: String, val reason: String) {
     CALENDAR("Calendar access", "Your alarms live in the Alarms calendar."),
     EXACT_ALARMS("Exact alarms", "Lets alarms ring at the exact minute."),
     FULL_SCREEN("Full-screen alarms", "Shows the alarm over the lock screen."),
+    OVER_OTHER_APPS("Show over other apps", "Opens the full-screen alarm while you are using the phone."),
     BATTERY("Battery: Unrestricted", "Stops Samsung from putting the app to sleep."),
     SYNC("Google sync for Alarms", "Lets your PC see changes made on the phone."),
 }
@@ -50,6 +51,7 @@ class ReliabilityChecks(
             Check.FULL_SCREEN to (
                 notifications.canUseFullScreenIntent() && fullScreenIntentAppOpAllowed(context)
             ),
+            Check.OVER_OTHER_APPS to Settings.canDrawOverlays(context),
             Check.BATTERY to context.getSystemService(PowerManager::class.java)
                 .isIgnoringBatteryOptimizations(context.packageName),
             Check.SYNC to syncOn(settings.current()),
@@ -92,6 +94,7 @@ class ReliabilityChecks(
             Check.CALENDAR -> Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
             Check.EXACT_ALARMS -> Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, pkg)
             Check.FULL_SCREEN -> Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, pkg)
+            Check.OVER_OTHER_APPS -> Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, pkg)
             Check.BATTERY -> Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkg)
             Check.SYNC -> Intent(Settings.ACTION_SYNC_SETTINGS)
         }

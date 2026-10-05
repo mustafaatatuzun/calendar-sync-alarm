@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Lets RingingService open the full-screen ringing activity while another app is in front;
+         without it Android blocks the launch and only shows a heads-up notification. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
     <!-- Setup only (spec §3) -->
     <uses-permission android:name="android.permission.INTERNET" />

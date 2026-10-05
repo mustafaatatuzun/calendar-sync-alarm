@@ -81,8 +81,13 @@ class ReliabilityChecksTest {
     }
 
     @Test
-    fun `Check enum has exactly six entries`() {
-        assertEquals(6, Check.entries.size)
+    fun `Check enum has exactly seven entries`() {
+        assertEquals(7, Check.entries.size)
+    }
+
+    @Test
+    fun `Check OVER_OTHER_APPS is present with expected label`() {
+        assertEquals("Show over other apps", Check.OVER_OTHER_APPS.label)
     }
 
     @Test

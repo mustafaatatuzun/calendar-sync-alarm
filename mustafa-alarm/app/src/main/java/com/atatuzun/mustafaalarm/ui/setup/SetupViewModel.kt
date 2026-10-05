@@ -34,6 +34,10 @@ enum class SetupStep(val title: String, val reason: String) {
         "Shows the alarm over the lock screen. On Samsung the toggle may already look turned on " +
             "but is really in the system's default state — flip it off and back on to confirm it.",
     ),
+    OVER_OTHER_APPS(
+        "Show over other apps",
+        "Without it, an alarm that rings while you are using the phone only shows a small pop-up.",
+    ),
     BATTERY("Battery: Unrestricted", "Stops Samsung from putting the app to sleep."),
 }
 
@@ -54,6 +58,7 @@ class SetupViewModel(private val graph: AppGraph) : ViewModel() {
     private val permissionSteps = listOf(
         SetupStep.NOTIFICATIONS to Check.NOTIFICATIONS,
         SetupStep.FULL_SCREEN to Check.FULL_SCREEN,
+        SetupStep.OVER_OTHER_APPS to Check.OVER_OTHER_APPS,
         SetupStep.BATTERY to Check.BATTERY,
     )
 
