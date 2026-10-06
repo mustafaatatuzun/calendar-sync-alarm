@@ -122,6 +122,7 @@ fun SettingsScreen(graph: AppGraph, onBack: () -> Unit, onSwitchAccount: (() -> 
                     }
                 }
             }
+            AboutSection()
             Spacer(Modifier.height(32.dp))
         }
     }
