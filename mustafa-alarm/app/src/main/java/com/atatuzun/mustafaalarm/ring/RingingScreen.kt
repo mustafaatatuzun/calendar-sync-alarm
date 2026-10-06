@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +40,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
@@ -48,7 +51,9 @@ import androidx.compose.ui.unit.sp
 import com.atatuzun.mustafaalarm.data.settings.AlarmSettings
 import com.atatuzun.mustafaalarm.data.settings.StopMethod
 import com.atatuzun.mustafaalarm.domain.AlarmContact
+import com.atatuzun.mustafaalarm.domain.AlarmPeople
 import com.atatuzun.mustafaalarm.domain.InstanceKey
+import com.atatuzun.mustafaalarm.ui.WhatsAppGreen
 import com.atatuzun.mustafaalarm.domain.RingingEntry
 import com.atatuzun.mustafaalarm.domain.Texts
 import kotlinx.coroutines.delay
@@ -61,9 +66,10 @@ fun RingingScreen(
     settings: AlarmSettings,
     onAll: (String) -> Unit,
     onOne: (String, InstanceKey) -> Unit,
-    contacts: Map<InstanceKey, AlarmContact> = emptyMap(),
+    people: Map<InstanceKey, AlarmPeople> = emptyMap(),
     onRename: (InstanceKey, String) -> Unit = { _, _ -> },
     onCall: (AlarmContact) -> Unit = {},
+    onWhatsApp: (AlarmContact) -> Unit = {},
 ) {
     var editing by remember { mutableStateOf<RingingEntry?>(null) }
     editing?.let { entry ->
@@ -73,6 +79,7 @@ fun RingingScreen(
             onDismiss = { editing = null },
         )
     }
+    val muted by RingingService.muted.collectAsState()
     val zone = ZoneId.systemDefault()
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(1_000) } }
@@ -84,6 +91,14 @@ fun RingingScreen(
     Surface(Modifier.fillMaxSize().semantics { testTagsAsResourceId = true }, color = MaterialTheme.colorScheme.background) {
         Column(Modifier.fillMaxSize().systemBarsPadding().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text(Texts.clock(now, zone, settings.use24Hour), fontSize = 88.sp, fontWeight = FontWeight.Light, modifier = Modifier.testTag("ring-clock"))
+            if (muted) {
+                Text(
+                    "Muted — snooze or stop when you're ready",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.testTag("ring-muted"),
+                )
+            }
             LazyColumn(
                 Modifier.weight(1f).fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -104,7 +119,7 @@ fun RingingScreen(
                                     Icon(Icons.Filled.Edit, contentDescription = "Edit message")
                                 }
                             }
-                            contacts[entry.key]?.let { contact ->
+                            people[entry.key]?.call?.let { contact ->
                                 Button(
                                     onClick = { onCall(contact) },
                                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(56.dp).testTag("ring-call-${entry.key.eventId}"),
@@ -112,6 +127,17 @@ fun RingingScreen(
                                     Icon(Icons.Filled.Call, contentDescription = null)
                                     Spacer(Modifier.width(8.dp))
                                     Text("Call ${contact.name}", fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                }
+                            }
+                            people[entry.key]?.whatsApp?.let { contact ->
+                                Button(
+                                    onClick = { onWhatsApp(contact) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = WhatsAppGreen, contentColor = Color.White),
+                                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp).height(56.dp).testTag("ring-whatsapp-${entry.key.eventId}"),
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("WhatsApp ${contact.name}", fontSize = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 }
                             }
                             if (expanded == entry.key) {

@@ -26,6 +26,18 @@ class AlarmListTest {
         cal.insertEvent(CAL, title, EventTiming.Recurring(t(start), rule, "PT15M"), ZONE.id)
 
     @Test
+    fun items_carryCallAndWhatsAppContacts() {
+        val withBoth = oneOff("2026-10-02T12:00", "Both")
+        cal.updateEvent(withBoth, EventPatch(description = "Notes\nCall: Ahmet | +90 532 1\nWhatsApp: Ayşe | +357 99 2"))
+        oneOff("2026-10-02T13:00", "Nobody")
+        val byTitle = items().associateBy { it.title }
+        assertEquals(AlarmContact("Ahmet", "+90 532 1"), byTitle.getValue("Both").call)
+        assertEquals(AlarmContact("Ayşe", "+357 99 2"), byTitle.getValue("Both").whatsApp)
+        assertNull(byTitle.getValue("Nobody").call)
+        assertNull(byTitle.getValue("Nobody").whatsApp)
+    }
+
+    @Test
     fun groupsByDay_sorted_eachAlarmOnce() {
         oneOff("2026-10-02T12:00", "Noon")
         series("2026-10-01T07:00", "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR,SA,SU", "Daily")

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Call
@@ -69,8 +70,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.atatuzun.mustafaalarm.AppGraph
+import com.atatuzun.mustafaalarm.domain.AlarmContact
 import com.atatuzun.mustafaalarm.domain.RecurrenceRule
 import com.atatuzun.mustafaalarm.domain.Texts
+import com.atatuzun.mustafaalarm.ui.WhatsAppGreen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -86,6 +89,34 @@ private val WEEK = listOf(
     DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY,
 )
 private val DATE = DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.ENGLISH)
+
+/** "Add a person to …" row; shows "<verb> <name>" + number with a remove button once picked. */
+@Composable
+private fun PersonRow(
+    contact: AlarmContact?,
+    verb: String,
+    empty: String,
+    tag: String,
+    icon: @Composable () -> Unit,
+    onPick: () -> Unit,
+    onClear: () -> Unit,
+) {
+    OutlinedCard(onClick = onPick, modifier = Modifier.fillMaxWidth().testTag(tag)) {
+        Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            icon()
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(contact?.let { "$verb ${it.name}" } ?: empty)
+                if (contact != null) Text(contact.number, style = MaterialTheme.typography.bodySmall)
+            }
+            if (contact != null) {
+                IconButton(onClick = onClear, modifier = Modifier.testTag("$tag-clear")) {
+                    Icon(Icons.Filled.Close, contentDescription = "Remove person")
+                }
+            }
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -106,16 +137,18 @@ fun EditAlarmScreen(graph: AppGraph, eventId: Long?, onDone: () -> Unit) {
     }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val contactPicker = rememberLauncherForActivityResult(PickPhoneNumber()) { uri ->
+    fun onPicked(set: (AlarmContact) -> Unit): (Uri?) -> Unit = { uri ->
         if (uri != null) scope.launch {
             val picked = withContext(Dispatchers.IO) {
                 runCatching { readPickedContact(context.contentResolver, uri) }
                     .onFailure { graph.log.log("contact pick: cannot read $uri: $it") }
                     .getOrNull()
             }
-            if (picked != null) vm.setContact(picked) else graph.log.log("contact pick: no number in $uri")
+            if (picked != null) set(picked) else graph.log.log("contact pick: no number in $uri")
         }
     }
+    val callPicker = rememberLauncherForActivityResult(PickPhoneNumber(), onPicked(vm::setContact))
+    val whatsAppPicker = rememberLauncherForActivityResult(PickPhoneNumber(), onPicked(vm::setWhatsApp))
 
     Scaffold(
         topBar = {
@@ -199,25 +232,16 @@ fun EditAlarmScreen(graph: AppGraph, eventId: Long?, onDone: () -> Unit) {
                     Text(ui.soundName)
                 }
             }
-            OutlinedCard(
-                onClick = { runCatching { contactPicker.launch(Unit) } },
-                modifier = Modifier.fillMaxWidth().testTag("contact"),
-            ) {
-                Row(Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Filled.Call, contentDescription = null)
-                    Spacer(Modifier.width(12.dp))
-                    val contact = ui.contact
-                    Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
-                        Text(contact?.let { "Call ${it.name}" } ?: "Add a person to call")
-                        if (contact != null) Text(contact.number, style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (contact != null) {
-                        IconButton(onClick = { vm.setContact(null) }, modifier = Modifier.testTag("contact-clear")) {
-                            Icon(Icons.Filled.Close, contentDescription = "Remove person")
-                        }
-                    }
-                }
-            }
+            PersonRow(
+                contact = ui.contact, verb = "Call", empty = "Add a person to call", tag = "contact",
+                icon = { Icon(Icons.Filled.Call, contentDescription = null) },
+                onPick = { runCatching { callPicker.launch(Unit) } }, onClear = { vm.setContact(null) },
+            )
+            PersonRow(
+                contact = ui.whatsApp, verb = "WhatsApp", empty = "Add a person to WhatsApp", tag = "whatsapp",
+                icon = { Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = null, tint = WhatsAppGreen) },
+                onPick = { runCatching { whatsAppPicker.launch(Unit) } }, onClear = { vm.setWhatsApp(null) },
+            )
             Button(onClick = vm::save, enabled = ui.isDirty, modifier = Modifier.fillMaxWidth().testTag("save")) { Text("SAVE") }
             if (ui.editing) {
                 OutlinedButton(onClick = { confirmDelete = true }, modifier = Modifier.fillMaxWidth().testTag("delete")) { Text("DELETE") }

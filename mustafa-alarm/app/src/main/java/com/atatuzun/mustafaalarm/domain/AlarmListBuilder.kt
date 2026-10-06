@@ -10,6 +10,8 @@ data class AlarmItem(
     val kind: AlarmKind,
     val recurrence: RecurrenceRule,
     val on: Boolean,
+    val call: AlarmContact? = null,
+    val whatsApp: AlarmContact? = null,
 ) {
     val nextRing: Long? get() = if (on) shownAt else null
 }
@@ -42,16 +44,21 @@ object AlarmListBuilder {
         val items = events
             .filter { !it.allDay && !it.isException && !it.isCanceled }
             .mapNotNull { e ->
+                fun item(shownAt: Long, kind: AlarmKind, recurrence: RecurrenceRule, on: Boolean) = AlarmItem(
+                    e.id, e.title, shownAt, kind, recurrence, on,
+                    call = ContactLine.read(e.description, ContactKind.CALL),
+                    whatsApp = ContactLine.read(e.description, ContactKind.WHATSAPP),
+                )
                 if (!e.isSeries) {
                     val on = !e.isOff && e.dtStart >= minute
                     if (!on && e.dtStart < todayStart) null
-                    else AlarmItem(e.id, e.title, e.dtStart, AlarmKind.ONE_OFF, RecurrenceRule.Once, on)
+                    else item(e.dtStart, AlarmKind.ONE_OFF, RecurrenceRule.Once, on)
                 } else {
                     val next = nextByAlarm[e.id] ?: return@mapNotNull null
                     val parsed = RecurrenceRule.parse(e.rrule)
                     val recurrence = parsed ?: RecurrenceRule.Once
                     val kind = if (parsed != null) AlarmKind.SERIES else AlarmKind.OTHER_REPEAT
-                    AlarmItem(e.id, e.title, next, kind, recurrence, !e.isOff)
+                    item(next, kind, recurrence, !e.isOff)
                 }
             }
 

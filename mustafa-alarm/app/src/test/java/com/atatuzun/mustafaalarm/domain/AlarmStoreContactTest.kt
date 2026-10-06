@@ -14,8 +14,44 @@ class AlarmStoreContactTest {
     private val store = AlarmStore(cal, local, clock, { CAL }, { 30 }, { available })
     private val ahmet = AlarmContact("Ahmet Yılmaz", "+90 532 123 45 67")
 
-    private fun input(message: String = "Call Ahmet", contact: AlarmContact? = null, recurrence: RecurrenceRule = RecurrenceRule.Once) =
-        AlarmInput(LocalTime.of(11, 0), null, recurrence, message, null, contact)
+    private val ayse = AlarmContact("Ayşe Kaya", "+357 99 123456")
+
+    private fun input(
+        message: String = "Call Ahmet",
+        contact: AlarmContact? = null,
+        recurrence: RecurrenceRule = RecurrenceRule.Once,
+        whatsApp: AlarmContact? = null,
+    ) = AlarmInput(LocalTime.of(11, 0), null, recurrence, message, null, contact, whatsApp)
+
+    @Test
+    fun create_withCallAndWhatsApp_storesBothLines_detailsReadsBoth() {
+        val id = create(input(contact = ahmet, whatsApp = ayse))
+        assertEquals("Call: Ahmet Yılmaz | +90 532 123 45 67\nWhatsApp: Ayşe Kaya | +357 99 123456", cal.event(id)!!.description)
+        assertEquals(ahmet, store.details(id)!!.contact)
+        assertEquals(ayse, store.details(id)!!.whatsApp)
+    }
+
+    @Test
+    fun update_addsWhatsApp_keepsCallAndNotes() {
+        val id = create(input(contact = ahmet))
+        cal.updateEvent(id, EventPatch(description = "Notes\nCall: Ahmet Yılmaz | +90 532 123 45 67"))
+        store.update(id, input(contact = ahmet, whatsApp = ayse))
+        assertEquals(
+            "Notes\nCall: Ahmet Yılmaz | +90 532 123 45 67\nWhatsApp: Ayşe Kaya | +357 99 123456",
+            cal.event(id)!!.description,
+        )
+    }
+
+    @Test
+    fun peopleFor_returnsBoth_withSeriesFallbackPerKind() {
+        val id = create(input(contact = ahmet, whatsApp = ayse, recurrence = RecurrenceRule.Daily))
+        val begin = cal.event(id)!!.dtStart
+        assertEquals(AlarmPeople(ahmet, ayse), store.peopleFor(InstanceKey(id, begin)))
+        store.snooze(InstanceKey(id, begin), clock.millis())
+        val exception = cal.events(CAL).single { it.originalId == id }
+        cal.updateEvent(exception.id, EventPatch(description = "Call: Ahmet Yılmaz | +90 532 123 45 67"))
+        assertEquals(AlarmPeople(ahmet, ayse), store.peopleFor(InstanceKey(exception.id, exception.dtStart)))
+    }
 
     private fun create(i: AlarmInput) = (store.create(i) as SaveResult.Saved).eventId
 
@@ -60,20 +96,26 @@ class AlarmStoreContactTest {
     }
 
     @Test
-    fun contactFor_seriesOccurrence_andSnoozedException() {
+    fun peopleFor_seriesOccurrence_andSnoozedException() {
         val id = create(input(contact = ahmet, recurrence = RecurrenceRule.Daily))
         val begin = cal.event(id)!!.dtStart
-        assertEquals(ahmet, store.contactFor(InstanceKey(id, begin)))
+        assertEquals(AlarmPeople(ahmet, null), store.peopleFor(InstanceKey(id, begin)))
         store.snooze(InstanceKey(id, begin), clock.millis())
         val exception = cal.events(CAL).single { it.originalId == id }
-        assertEquals(ahmet, store.contactFor(InstanceKey(exception.id, exception.dtStart)))
+        assertEquals(AlarmPeople(ahmet, null), store.peopleFor(InstanceKey(exception.id, exception.dtStart)))
     }
 
     @Test
-    fun contactFor_calendarUnavailable_isNull() {
+    fun peopleFor_calendarUnavailable_isNull() {
         val id = create(input(contact = ahmet))
         available = false
-        assertNull(store.contactFor(InstanceKey(id, cal.event(id)!!.dtStart)))
+        assertNull(store.peopleFor(InstanceKey(id, cal.event(id)!!.dtStart)))
+    }
+
+    @Test
+    fun peopleFor_nobodyAttached_isNull() {
+        val id = create(input())
+        assertNull(store.peopleFor(InstanceKey(id, cal.event(id)!!.dtStart)))
     }
 
     @Test

@@ -77,6 +77,10 @@ object RingPlanner {
     /** The earliest ringAt in the cache, or null if empty. A past value means "fire now". */
     fun nextTrigger(cache: List<CachedOccurrence>): Long? = cache.minOfOrNull { it.ringAt }
 
+    /** Sound + vibration play while at least one ringing alarm hasn't been muted (volume key). */
+    fun soundWanted(ringing: Set<InstanceKey>, muted: Set<InstanceKey>): Boolean =
+        ringing.isNotEmpty() && !muted.containsAll(ringing)
+
     /**
      * Occurrences that must ring at [now]: everything whose ringAt falls in the current minute,
      * plus anything missed within [MISSED_WINDOW], excluding already-handled or ringing ones.

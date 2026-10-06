@@ -39,6 +39,8 @@ class RingingService : Service() {
     private var player: AlarmPlayer? = null
     private var wakeLock: PowerManager.WakeLock? = null
     private var playingKeys: Set<InstanceKey> = emptySet()
+    /** Ringing alarms silenced by a volume key; executor thread only. */
+    private var mutedKeys: Set<InstanceKey> = emptySet()
     private val autoSnoozeRunnable = Runnable { executor.execute { handle(ACTION_AUTO_SNOOZE, null) } }
 
     private lateinit var serviceScope: CoroutineScope
@@ -112,6 +114,8 @@ class RingingService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        screenVisible = false
+        _muted.value = false
         _stopPresses.value = 0
         _deletePresses.value = 0
         serviceScope.cancel()
@@ -129,7 +133,7 @@ class RingingService : Service() {
         try {
             startForeground(
                 Notifications.ID_RINGING,
-                graph.notifications.ringing(RingingState.entries.value, AlarmSettings(), _stopPresses.value, _deletePresses.value),
+                graph.notifications.ringing(RingingState.entries.value, AlarmSettings(), _stopPresses.value, _deletePresses.value, screenVisible),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK,
             )
         } catch (e: Exception) {
@@ -151,6 +155,12 @@ class RingingService : Service() {
         try {
             when (action) {
                 ACTION_FIRE -> fire()
+                ACTION_MUTE -> {
+                    mutedKeys = graph.local.ringing().mapTo(HashSet()) { it.key }
+                    graph.log.log("ringing: muted by volume key")
+                }
+                ACTION_SCREEN_SHOWN -> screenVisible = true
+                ACTION_SCREEN_HIDDEN -> screenVisible = false
                 ACTION_RENAME -> rename(keys, text.orEmpty())
                 ACTION_SNOOZE, ACTION_TOMORROW -> act(action, keys)
                 ACTION_STOP -> if (keys == null) { stopCounter.press(); return } else act(action, keys)
@@ -223,7 +233,7 @@ class RingingService : Service() {
         val settings = graph.settings.current()
         graph.notifications.manager.notify(
             Notifications.ID_RINGING,
-            graph.notifications.ringing(entries, settings, _stopPresses.value, _deletePresses.value),
+            graph.notifications.ringing(entries, settings, _stopPresses.value, _deletePresses.value, screenVisible),
         )
     }
 
@@ -239,14 +249,18 @@ class RingingService : Service() {
     private fun render() {
         val ringing = graph.local.ringing()
         val settings = graph.settings.current()
+        val keys = ringing.mapTo(HashSet()) { it.key }
+        mutedKeys = mutedKeys intersect keys
+        val wantSound = RingPlanner.soundWanted(keys, mutedKeys)
+        _muted.value = ringing.isNotEmpty() && !wantSound
 
         // Compute savedRestoreVolume on the executor thread before posting to main.
         val savedRestoreVolume: Int? = when {
-            ringing.isNotEmpty() && player == null && settings.preRingVolume != null -> {
+            wantSound && player == null && settings.preRingVolume != null -> {
                 // Crash restart: use persisted value, clear DataStore after player starts.
                 settings.preRingVolume
             }
-            ringing.isNotEmpty() && player == null && settings.increaseDeviceVolume -> {
+            wantSound && player == null && settings.increaseDeviceVolume -> {
                 // Fresh start: read current volume and persist it now (before main thread raises it).
                 runCatching {
                     val audio = getSystemService(AudioManager::class.java)
@@ -265,7 +279,7 @@ class RingingService : Service() {
         RingingState.publish(ringing)
         main.post {
             if (ringing.isEmpty()) finishRinging()
-            else showRinging(ringing, settings, sound, savedRestoreVolume)
+            else showRinging(ringing, settings, sound, savedRestoreVolume, wantSound)
         }
     }
 
@@ -279,14 +293,27 @@ class RingingService : Service() {
      * [savedRestoreVolume] null  → fresh start: AlarmPlayer reads current and raises (increaseDeviceVolume path).
      * [savedRestoreVolume] non-null → crash restart: pass through to player so it skips raising.
      */
-    private fun showRinging(ringing: List<RingingEntry>, settings: AlarmSettings, sound: Uri?, savedRestoreVolume: Int?) {
+    private fun showRinging(
+        ringing: List<RingingEntry>,
+        settings: AlarmSettings,
+        sound: Uri?,
+        savedRestoreVolume: Int?,
+        wantSound: Boolean,
+    ) {
         acquireWakeLock()
         graph.notifications.manager.notify(
             Notifications.ID_RINGING,
-            graph.notifications.ringing(ringing, settings, _stopPresses.value, _deletePresses.value),
+            graph.notifications.ringing(ringing, settings, _stopPresses.value, _deletePresses.value, screenVisible),
         )
-        if (player == null) {
-            player = AlarmPlayer(this).also { it.start(sound, settings, savedRestoreVolume) }
+        if (!wantSound && player != null) {
+            // Muted: stop sound + vibration (stop() restores the device volume) but keep ringing on screen.
+            player?.stop()
+            player = null
+            executor.execute { runCatching { graph.settings.updateBlocking { it.copy(preRingVolume = null) } } }
+        }
+        if (wantSound && player == null) {
+            player = AlarmPlayer(this) { executor.execute { handle(ACTION_MUTE, null) } }
+                .also { it.start(sound, settings, savedRestoreVolume) }
             // Explicit activity launch on first ring. fullScreenIntent in the notification only
             // auto-invokes when the device is LOCKED. When unlocked (home screen, in-app, or on
             // Mustafa Alarm itself), Android deliberately falls back to a heads-up notification —
@@ -349,6 +376,9 @@ class RingingService : Service() {
         const val ACTION_DELETE = "com.atatuzun.mustafaalarm.DELETE"
         const val ACTION_AUTO_SNOOZE = "com.atatuzun.mustafaalarm.AUTO_SNOOZE"
         const val ACTION_RENAME = "com.atatuzun.mustafaalarm.RENAME"
+        const val ACTION_MUTE = "com.atatuzun.mustafaalarm.MUTE"
+        private const val ACTION_SCREEN_SHOWN = "com.atatuzun.mustafaalarm.SCREEN_SHOWN"
+        private const val ACTION_SCREEN_HIDDEN = "com.atatuzun.mustafaalarm.SCREEN_HIDDEN"
         private const val ACTION_RESUME = "com.atatuzun.mustafaalarm.RESUME"
         private const val EXTRA_KEYS = "keys"
         private const val EXTRA_TEXT = "text"
@@ -357,10 +387,21 @@ class RingingService : Service() {
         var isRunning = false
             private set
 
+        /** The ringing screen is on screen, so the notification goes quiet (no heads-up over it). */
+        @Volatile
+        private var screenVisible = false
+
+        /** Called by RingingActivity from onStart/onStop; ignored once ringing has ended. */
+        fun screenShown(context: Context, shown: Boolean) {
+            if (isRunning) command(context, if (shown) ACTION_SCREEN_SHOWN else ACTION_SCREEN_HIDDEN)
+        }
+
         private val _stopPresses = MutableStateFlow(0)
         val stopPresses: StateFlow<Int> = _stopPresses.asStateFlow()
         private val _deletePresses = MutableStateFlow(0)
         val deletePresses: StateFlow<Int> = _deletePresses.asStateFlow()
+        private val _muted = MutableStateFlow(false)
+        val muted: StateFlow<Boolean> = _muted.asStateFlow()
 
         fun fire(context: Context) {
             context.startForegroundService(Intent(context, RingingService::class.java).setAction(ACTION_FIRE))

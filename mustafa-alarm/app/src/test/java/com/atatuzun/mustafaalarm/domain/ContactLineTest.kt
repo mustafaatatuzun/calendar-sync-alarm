@@ -65,4 +65,21 @@ class ContactLineTest {
     @Test
     fun roundTrip() =
         assertEquals(ahmet, ContactLine.read(ContactLine.write("x", ahmet)))
+
+    private val ayse = AlarmContact("Ayşe Kaya", "+357 99 123456")
+
+    @Test
+    fun whatsApp_isItsOwnLine_independentOfCall() {
+        val both = ContactLine.write(ContactLine.write("Notes", ahmet, ContactKind.CALL), ayse, ContactKind.WHATSAPP)
+        assertEquals("Notes\nCall: Ahmet Yılmaz | +90 532 123 45 67\nWhatsApp: Ayşe Kaya | +357 99 123456", both)
+        assertEquals(ahmet, ContactLine.read(both, ContactKind.CALL))
+        assertEquals(ayse, ContactLine.read(both, ContactKind.WHATSAPP))
+    }
+
+    @Test
+    fun whatsApp_removeLeavesCallLine() {
+        val both = "Call: Ahmet Yılmaz | +90 532 123 45 67\nWhatsApp: Ayşe Kaya | +357 99 123456"
+        assertEquals("Call: Ahmet Yılmaz | +90 532 123 45 67", ContactLine.write(both, null, ContactKind.WHATSAPP))
+        assertNull(ContactLine.read("Call: Ahmet Yılmaz | +90 532 123 45 67", ContactKind.WHATSAPP))
+    }
 }

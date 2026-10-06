@@ -29,6 +29,14 @@ class Notifications(private val context: Context) {
             },
         )
         manager.createNotificationChannel(
+            NotificationChannel(CHANNEL_RINGING_QUIET, "Ringing alarm (screen open)", NotificationManager.IMPORTANCE_LOW).apply {
+                setSound(null, null)
+                enableVibration(false)
+                setShowBadge(false)
+                lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+            },
+        )
+        manager.createNotificationChannel(
             NotificationChannel(CHANNEL_NEXT, "Next alarm", NotificationManager.IMPORTANCE_LOW).apply { setShowBadge(false) },
         )
     }
@@ -57,12 +65,15 @@ class Notifications(private val context: Context) {
      * Snooze + Stop (dynamic label) + Delete (spec §8).
      *
      * [stopPresses] / [deletePresses] drive the countdown labels on the Stop and Delete actions.
+     * [quiet]: the ringing screen is already showing, so post on a low-importance channel without the
+     * full-screen intent; that takes the heads-up pop-up off the top of the ringing screen.
      */
     fun ringing(
         entries: List<RingingEntry>,
         settings: AlarmSettings,
         stopPresses: Int = 0,
         deletePresses: Int = 0,
+        quiet: Boolean = false,
     ): Notification {
         val zone = ZoneId.systemDefault()
         val pressesNeeded = RingingService.pressesNeededFor(settings.stopMethod)
@@ -71,7 +82,7 @@ class Notifications(private val context: Context) {
             Intent(context, RingingActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_USER_ACTION),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        val builder = Notification.Builder(context, CHANNEL_RINGING)
+        val builder = Notification.Builder(context, if (quiet) CHANNEL_RINGING_QUIET else CHANNEL_RINGING)
             .setSmallIcon(R.drawable.ic_alarm)
             .setContentTitle(entries.joinToString(" · ") { it.title }.ifEmpty { DEFAULT_TITLE })
             .setContentText(entries.firstOrNull()?.let { "Alarm ${Texts.clock(it.ringAt, zone, settings.use24Hour)}" } ?: "Alarm")
@@ -79,9 +90,9 @@ class Notifications(private val context: Context) {
             .setVisibility(Notification.VISIBILITY_PUBLIC)
             .setOngoing(true)
             .setOnlyAlertOnce(true)
-            .setFullScreenIntent(screen, true)
             .setContentIntent(screen)
             .setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
+        if (!quiet) builder.setFullScreenIntent(screen, true)
         if (settings.showSnoozeButton) builder.addAction(serviceAction("Snooze ${settings.snoozeMinutes} m", RingingService.ACTION_SNOOZE, 21))
         val stopLabel = if (stopPresses == 0) "Stop" else "Stop (${pressesNeeded - stopPresses} more)"
         builder.addAction(serviceAction(stopLabel, RingingService.ACTION_STOP, 22))
@@ -100,6 +111,7 @@ class Notifications(private val context: Context) {
 
     companion object {
         const val CHANNEL_RINGING = "ringing"
+        const val CHANNEL_RINGING_QUIET = "ringing_quiet"
         const val CHANNEL_NEXT = "next_alarm"
         const val ID_RINGING = 1
         const val ID_NEXT = 2

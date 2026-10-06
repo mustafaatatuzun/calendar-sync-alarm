@@ -27,6 +27,12 @@
     <!-- Setup only (spec §3) -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Lets ContactActions find WhatsApp's chat-link screen (Android 11+ package visibility). -->
+    <queries>
+        <package android:name="com.whatsapp" />
+        <package android:name="com.whatsapp.w4b" />
+    </queries>
+
     <application
         android:name=".MustafaAlarmApp"
         android:allowBackup="false"

@@ -17,8 +17,10 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
@@ -61,13 +63,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.text.style.TextOverflow
 import com.atatuzun.mustafaalarm.AppGraph
+import com.atatuzun.mustafaalarm.domain.AlarmContact
 import com.atatuzun.mustafaalarm.domain.AlarmItem
 import com.atatuzun.mustafaalarm.domain.AlarmKind
 import com.atatuzun.mustafaalarm.domain.AlarmListState
 import com.atatuzun.mustafaalarm.domain.RecurrenceRule
 import com.atatuzun.mustafaalarm.domain.Texts
 import com.atatuzun.mustafaalarm.domain.Times
+import com.atatuzun.mustafaalarm.system.ContactActions
 import com.atatuzun.mustafaalarm.ui.Banner
+import com.atatuzun.mustafaalarm.ui.WhatsAppGreen
 import com.atatuzun.mustafaalarm.ui.NextAlarmBar
 import java.time.ZoneId
 import java.util.Locale
@@ -233,6 +238,8 @@ fun AlarmListScreen(
                                 onToggle = { vm.setEnabled(item.eventId, it) },
                                 onEdit = { onEdit(item.eventId) },
                                 onDelete = { pendingDelete = item },
+                                onCall = { ContactActions.start(context, ContactActions.dial(it), graph.log::log) },
+                                onWhatsApp = { ContactActions.start(context, ContactActions.whatsApp(context, it), graph.log::log) },
                             )
                         }
                     }
@@ -271,6 +278,8 @@ private fun AlarmRow(
     onToggle: (Boolean) -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    onCall: (AlarmContact) -> Unit,
+    onWhatsApp: (AlarmContact) -> Unit,
 ) {
     val container = if (item.on) Color(0xFF4A5670) else Color(0xFF5F6368)
     val content = if (item.on) Color.White else Color(0xFF2E3135)
@@ -306,6 +315,16 @@ private fun AlarmRow(
                             text = Texts.recurrenceSummary(item.recurrence, Times.localTime(item.shownAt, zone), Times.localDate(item.shownAt, zone), use24h, Locale.ENGLISH),
                             style = MaterialTheme.typography.bodySmall,
                         )
+                    }
+                }
+                item.call?.let { contact ->
+                    IconButton(onClick = { onCall(contact) }, modifier = Modifier.testTag("call-${item.eventId}")) {
+                        Icon(Icons.Filled.Call, contentDescription = "Call ${contact.name}")
+                    }
+                }
+                item.whatsApp?.let { contact ->
+                    IconButton(onClick = { onWhatsApp(contact) }, modifier = Modifier.testTag("whatsapp-${item.eventId}")) {
+                        Icon(Icons.AutoMirrored.Filled.Chat, contentDescription = "WhatsApp ${contact.name}", tint = WhatsAppGreen)
                     }
                 }
                 Switch(

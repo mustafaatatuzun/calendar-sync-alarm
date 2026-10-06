@@ -4,6 +4,9 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.MediaPlayer
+import android.media.VolumeProvider
+import android.media.session.MediaSession
+import android.media.session.PlaybackState
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -17,12 +20,17 @@ import com.atatuzun.mustafaalarm.data.settings.AlarmSettings
 import com.atatuzun.mustafaalarm.data.settings.SoundMode
 import com.atatuzun.mustafaalarm.domain.FadeCurve
 
-/** Plays the alarm on the ALARM stream, loops it, fades it in, vibrates (spec §8). Main thread only. */
-class AlarmPlayer(private val context: Context) {
+/**
+ * Plays the alarm on the ALARM stream, loops it, fades it in, vibrates (spec §8). Main thread only.
+ * While playing it holds an active remote-volume media session, so Android hands every volume-key press to
+ * [onVolumeKey] — also over the lock screen, where the key-focused window is SystemUI, not RingingActivity.
+ */
+class AlarmPlayer(private val context: Context, private val onVolumeKey: () -> Unit = {}) {
     private val audio = context.getSystemService(AudioManager::class.java)
     private val handler = Handler(Looper.getMainLooper())
     private var media: MediaPlayer? = null
     private var vibrator: Vibrator? = null
+    private var volumeKeys: MediaSession? = null
     private var restoreVolume: Int? = null
     private var fadeStart = 0L
     private var target = 1f
@@ -79,9 +87,22 @@ class AlarmPlayer(private val context: Context) {
                 )
             }
         }
+        volumeKeys = runCatching { claimVolumeKeys() }.getOrNull()
+    }
+
+    private fun claimVolumeKeys(): MediaSession = MediaSession(context, "MustafaAlarm ringing").apply {
+        // Without a Callback the session drops volume-adjust messages before they reach the VolumeProvider.
+        setCallback(object : MediaSession.Callback() {}, handler)
+        setPlaybackToRemote(object : VolumeProvider(VOLUME_CONTROL_RELATIVE, 1, 1) {
+            override fun onAdjustVolume(direction: Int) = onVolumeKey()
+        })
+        setPlaybackState(PlaybackState.Builder().setState(PlaybackState.STATE_PLAYING, 0, 1f).build())
+        isActive = true
     }
 
     fun stop() {
+        volumeKeys?.runCatching { isActive = false; release() }
+        volumeKeys = null
         handler.removeCallbacks(fade)
         media?.runCatching { stop(); release() }
         media = null

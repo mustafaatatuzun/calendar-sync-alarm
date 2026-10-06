@@ -147,4 +147,14 @@ class RingPlannerTest {
         // Famagusta rings earlier in epoch, so ringAtLondon > ringAtFamagusta by exactly 2 hours.
         assertEquals(2 * HOUR, ringAtLondon - ringAtFamagusta)
     }
+
+    @Test
+    fun soundWanted_untilEveryRingingAlarmIsMuted_andANewOneBringsItBack() {
+        val a = InstanceKey(1, 0)
+        val b = InstanceKey(2, 0)
+        assertTrue(RingPlanner.soundWanted(ringing = setOf(a), muted = emptySet()))
+        assertEquals(false, RingPlanner.soundWanted(ringing = setOf(a), muted = setOf(a)))
+        assertTrue(RingPlanner.soundWanted(ringing = setOf(a, b), muted = setOf(a)))
+        assertEquals(false, RingPlanner.soundWanted(ringing = emptySet(), muted = setOf(a)))
+    }
 }

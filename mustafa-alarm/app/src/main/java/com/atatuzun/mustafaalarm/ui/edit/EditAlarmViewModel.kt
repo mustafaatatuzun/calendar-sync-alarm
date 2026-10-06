@@ -32,6 +32,7 @@ data class EditSnapshot(
     val message: String,
     val soundUri: String?,
     val contact: AlarmContact? = null,
+    val whatsApp: AlarmContact? = null,
 )
 
 data class EditUi(
@@ -45,6 +46,7 @@ data class EditUi(
     val soundUri: String? = null,
     val soundName: String = "Default",
     val contact: AlarmContact? = null,
+    val whatsApp: AlarmContact? = null,
     val otherRepeat: Boolean = false,
     val use24h: Boolean = true,
     val error: String? = null,
@@ -65,7 +67,8 @@ data class EditUi(
                 date != s.date ||
                 message != s.message ||
                 soundUri != s.soundUri ||
-                contact != s.contact
+                contact != s.contact ||
+                whatsApp != s.whatsApp
         }
 }
 
@@ -125,6 +128,7 @@ class EditAlarmViewModel(
                         message = message,
                         soundUri = details.soundUri,
                         contact = details.contact,
+                        whatsApp = details.whatsApp,
                     )
                     EditUi(
                         loading = false,
@@ -137,6 +141,7 @@ class EditAlarmViewModel(
                         soundUri = details.soundUri,
                         soundName = soundNameFn(details.soundUri),
                         contact = details.contact,
+                        whatsApp = details.whatsApp,
                         otherRepeat = details.kind == AlarmKind.OTHER_REPEAT,
                         use24h = use24h,
                         snapshot = snapshot,
@@ -196,6 +201,8 @@ class EditAlarmViewModel(
 
     fun setContact(contact: AlarmContact?) = mutable.update { it.copy(contact = contact) }
 
+    fun setWhatsApp(contact: AlarmContact?) = mutable.update { it.copy(whatsApp = contact) }
+
     fun clearError() = mutable.update { it.copy(error = null) }
 
     fun setSound(uri: String?) {
@@ -210,7 +217,7 @@ class EditAlarmViewModel(
         viewModelScope.launch {
             val result = withContext(ioDispatcher) {
                 runCatching {
-                    val input = AlarmInput(s.time, s.date, s.recurrence, s.message, s.soundUri, s.contact)
+                    val input = AlarmInput(s.time, s.date, s.recurrence, s.message, s.soundUri, s.contact, s.whatsApp)
                     val saved = if (eventId == null) store.create(input) else store.update(eventId, input)
                     if (saved is SaveResult.Saved) rescheduleFn(if (eventId == null) "create" else "edit")
                     saved

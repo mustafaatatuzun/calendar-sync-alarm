@@ -16,6 +16,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+val WhatsAppGreen = Color(0xFF1DA851)
+
 /** Red warning banner with an optional action, like Simple Alarm's volume warning. */
 @Composable
 fun Banner(text: String, action: String?, tag: String, onAction: () -> Unit) {

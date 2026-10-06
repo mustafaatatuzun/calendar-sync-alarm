@@ -15,6 +15,7 @@ data class AlarmInput(
     val message: String,
     val soundUri: String?,
     val contact: AlarmContact? = null,
+    val whatsApp: AlarmContact? = null,
 )
 
 sealed interface SaveResult {
@@ -35,6 +36,7 @@ data class AlarmDetails(
     val soundUri: String?,
     val on: Boolean,
     val contact: AlarmContact? = null,
+    val whatsApp: AlarmContact? = null,
 )
 
 /** Domain operations on alarms; the calendar is the source of truth (spec §4, §6). Blocking — call off the main thread. */
@@ -55,7 +57,7 @@ class AlarmStore(
         if (input.recurrence is RecurrenceRule.Yearly && input.date == null) return SaveResult.NeedsDateForYearly
         val timing = timingFor(input, now, DEFAULT_LENGTH_MINUTES * MINUTE) ?: return SaveResult.TimeInPast
         val title = titleOf(input.message)
-        val description = input.contact?.let { ContactLine.write(null, it) }
+        val description = peopleDescription(null, input)
         val id = calendar.insertEvent(calId, title, timing, zone.id, description)
         input.soundUri?.let { local.setSound(id, it) }
         if (recordHistory) local.recordCreation(input.time.hour * 60 + input.time.minute, now)
@@ -81,7 +83,8 @@ class AlarmStore(
             message = e.title,
             soundUri = local.soundFor(e.id),
             on = !e.isOff,
-            contact = ContactLine.read(e.description),
+            contact = ContactLine.read(e.description, ContactKind.CALL),
+            whatsApp = ContactLine.read(e.description, ContactKind.WHATSAPP),
         )
     }
 
@@ -100,8 +103,7 @@ class AlarmStore(
             eventId,
             EventPatch(
                 title = titleOf(input.message), timing = timing, zone = zone.id, color = ColorPatch.DEFAULT,
-                description = if (ContactLine.read(event.description) == input.contact) null
-                else ContactLine.write(event.description, input.contact),
+                description = peopleDescription(event.description, input),
             ),
         )
         local.setSound(eventId, input.soundUri)
@@ -163,12 +165,14 @@ class AlarmStore(
         return title
     }
 
-    /** The person to call for a ringing occurrence; null when none is set or the calendar can't be read yet. */
-    fun contactFor(key: InstanceKey): AlarmContact? {
+    /** Who to call / message for a ringing occurrence; null when nobody is set or the calendar can't be read yet. */
+    fun peopleFor(key: InstanceKey): AlarmPeople? {
         if (!calendarAvailable()) return null
         val event = calendar.event(key.eventId) ?: return null
-        return ContactLine.read(event.description)
-            ?: event.originalId?.let { ContactLine.read(calendar.event(it)?.description) }
+        val series by lazy { event.originalId?.let { calendar.event(it)?.description } }
+        fun find(kind: ContactKind) = ContactLine.read(event.description, kind) ?: ContactLine.read(series, kind)
+        return AlarmPeople(find(ContactKind.CALL), find(ContactKind.WHATSAPP))
+            .takeIf { it.call != null || it.whatsApp != null }
     }
 
     // ---- ringing actions (spec §6.1) -------------------------------------------------------
@@ -372,4 +376,17 @@ class AlarmStore(
     }
 
     private fun titleOf(message: String): String = message.trim().ifEmpty { DEFAULT_TITLE }
+
+    /** The description with the input's Call/WhatsApp lines, or null when neither changed (PC notes stay byte-for-byte). */
+    private fun peopleDescription(current: String?, input: AlarmInput): String? {
+        var text = current
+        var changed = false
+        for ((kind, contact) in listOf(ContactKind.CALL to input.contact, ContactKind.WHATSAPP to input.whatsApp)) {
+            if (ContactLine.read(text, kind) != contact) {
+                text = ContactLine.write(text, contact, kind)
+                changed = true
+            }
+        }
+        return text.takeIf { changed }
+    }
 }

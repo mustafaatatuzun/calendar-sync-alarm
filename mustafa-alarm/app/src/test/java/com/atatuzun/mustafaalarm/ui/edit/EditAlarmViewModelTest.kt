@@ -118,7 +118,23 @@ class EditAlarmViewModelTest {
         assertEquals("Call: Ahmet Yılmaz | +90 532 123 45 67", cal.events.values.single().description)
     }
 
+    @Test fun `whatsApp contact loads, is a saveable edit, and saves separately from the call contact`() {
+        val cal = FakeCalendarAccess()
+        val store = storeOn(cal)
+        val id = (store.create(AlarmInput(LocalTime.of(11, 0), null, RecurrenceRule.Once, "Call", null, ahmet, ayse)) as SaveResult.Saved).eventId
+        val vm = newVm(store, id)
+        assertEquals(ayse, vm.ui.value.whatsApp)
+        assertFalse(vm.ui.value.isDirty)
+
+        vm.setWhatsApp(null)
+        assertTrue(vm.ui.value.isDirty)
+        vm.save()
+        assertNull(store.details(id)!!.whatsApp)
+        assertEquals(ahmet, store.details(id)!!.contact)
+    }
+
     private val ahmet = AlarmContact("Ahmet Yılmaz", "+90 532 123 45 67")
+    private val ayse = AlarmContact("Ayşe Kaya", "+357 99 123456")
 
     private fun storeOn(cal: FakeCalendarAccess) =
         AlarmStore(cal, InMemoryLocalStore(), TestClock(t("2026-10-03T09:00")), { CAL }, { 30 }, { true })
