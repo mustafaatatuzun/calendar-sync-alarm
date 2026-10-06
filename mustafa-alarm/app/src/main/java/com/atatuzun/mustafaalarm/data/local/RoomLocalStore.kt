@@ -44,5 +44,9 @@ class RoomLocalStore(private val dao: LocalDao) : LocalStore {
     }
     override fun clearAutoSnooze(alarmId: Long) = dao.deleteAutoSnooze(alarmId)
 
+    override fun snoozeOrigin(eventId: Long): Long? = dao.snoozeOrigin(eventId)
+    override fun setSnoozeOrigin(eventId: Long, originalBegin: Long) = dao.upsertSnoozeOrigin(SnoozeOriginEntity(eventId, originalBegin))
+    override fun clearSnoozeOrigin(eventId: Long) = dao.deleteSnoozeOrigin(eventId)
+
     private fun CachedOccurrence.toEntity() = RingCacheEntity(key.eventId, key.begin, alarmId, ringAt, title)
 }

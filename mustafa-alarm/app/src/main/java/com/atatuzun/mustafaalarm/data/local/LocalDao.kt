@@ -41,4 +41,8 @@ abstract class LocalDao {
     @Query("SELECT count FROM auto_snooze_count WHERE alarmId = :alarmId") abstract fun autoSnoozeCount(alarmId: Long): Int?
     @Upsert abstract fun upsertAutoSnooze(entity: AutoSnoozeEntity)
     @Query("DELETE FROM auto_snooze_count WHERE alarmId = :alarmId") abstract fun deleteAutoSnooze(alarmId: Long)
+
+    @Query("SELECT originalBeginMillis FROM snooze_origin WHERE eventId = :eventId") abstract fun snoozeOrigin(eventId: Long): Long?
+    @Upsert abstract fun upsertSnoozeOrigin(entity: SnoozeOriginEntity)
+    @Query("DELETE FROM snooze_origin WHERE eventId = :eventId") abstract fun deleteSnoozeOrigin(eventId: Long)
 }

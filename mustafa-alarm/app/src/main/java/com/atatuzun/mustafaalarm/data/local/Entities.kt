@@ -34,3 +34,6 @@ data class PendingEntity(
  */
 @Entity(tableName = "auto_snooze_count")
 data class AutoSnoozeEntity(@PrimaryKey val alarmId: Long, val count: Int)
+
+@Entity(tableName = "snooze_origin")
+data class SnoozeOriginEntity(@PrimaryKey val eventId: Long, val originalBeginMillis: Long)

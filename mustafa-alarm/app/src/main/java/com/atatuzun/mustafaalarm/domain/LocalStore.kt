@@ -28,4 +28,9 @@ interface LocalStore {
     fun autoSnoozeCount(alarmId: Long): Int
     fun incrementAutoSnooze(alarmId: Long)
     fun clearAutoSnooze(alarmId: Long)
+
+    /** The time a one-off alarm was set for before its first snooze moved it; "Tomorrow" goes back to it. */
+    fun snoozeOrigin(eventId: Long): Long?
+    fun setSnoozeOrigin(eventId: Long, originalBegin: Long)
+    fun clearSnoozeOrigin(eventId: Long)
 }

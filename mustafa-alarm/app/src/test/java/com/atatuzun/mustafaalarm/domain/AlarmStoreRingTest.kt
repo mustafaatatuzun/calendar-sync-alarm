@@ -5,6 +5,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.ZoneId
 
 class AlarmStoreRingTest {
@@ -128,6 +129,49 @@ class AlarmStoreRingTest {
         assertEquals(1, local.pending.size)
     }
 
+    private fun snoozeAt(eventId: Long, at: String) = store.snooze(InstanceKey(eventId, t(at)), t(at))
+
+    @Test
+    fun tomorrow_afterSnoozes_oneOff_goesToTheOriginalTimeTomorrow() {
+        val id = oneOff("2026-10-05T09:00")
+        snoozeAt(id, "2026-10-05T09:00") // → 09:30
+        snoozeAt(id, "2026-10-05T09:30") // → 10:00
+        snoozeAt(id, "2026-10-05T10:00") // → 10:30
+        assertEquals(t("2026-10-05T10:30"), cal.event(id)!!.dtStart)
+        store.tomorrow(key(id, "2026-10-05T10:30"), t("2026-10-05T10:30"))
+        assertEquals(t("2026-10-06T09:00"), cal.event(id)!!.dtStart)
+        assertEquals(null, local.snoozeOrigin(id))
+    }
+
+    @Test
+    fun tomorrow_afterSnoozes_weeklyOccurrence_goesToTheOriginalTimeTomorrow() {
+        val id = series("2026-10-05T09:00", "FREQ=WEEKLY;BYDAY=MO,WE")
+        snoozeAt(id, "2026-10-05T09:00") // exception at 09:30
+        val ex = cal.events.values.single { it.originalId == id }
+        snoozeAt(ex.id, "2026-10-05T09:30") // → 10:00
+        store.tomorrow(InstanceKey(ex.id, t("2026-10-05T10:00")), t("2026-10-05T10:00"))
+        assertEquals(listOf(t("2026-10-06T09:00"), t("2026-10-07T09:00")), begins("2026-10-05T00:00", "2026-10-08T00:00"))
+    }
+
+    @Test
+    fun editingAfterASnooze_forgetsTheOldOriginalTime() {
+        val id = oneOff("2026-10-05T09:00")
+        snoozeAt(id, "2026-10-05T09:00")
+        store.update(id, AlarmInput(LocalTime.of(12, 0), null, RecurrenceRule.Once, "One-off", null))
+        snoozeAt(id, "2026-10-05T12:00")
+        store.tomorrow(key(id, "2026-10-05T12:30"), t("2026-10-05T12:30"))
+        assertEquals(t("2026-10-06T12:00"), cal.event(id)!!.dtStart)
+    }
+
+    @Test
+    fun stop_afterSnoozes_forgetsTheOriginalTime() {
+        val id = oneOff("2026-10-05T09:00")
+        snoozeAt(id, "2026-10-05T09:00")
+        assertEquals(t("2026-10-05T09:00"), local.snoozeOrigin(id))
+        store.stop(key(id, "2026-10-05T09:30"), t("2026-10-05T09:30"))
+        assertEquals(null, local.snoozeOrigin(id))
+    }
+
     @Test
     fun stop_oneOff_greysItAtItsTime() {
         val id = oneOff("2026-10-05T09:00")
@@ -246,10 +290,10 @@ class AlarmStoreRingTest {
         clock.now = t("2026-10-05T10:00")
         store.autoSnooze(InstanceKey(id, t("2026-10-05T10:00")), clock.millis())
         assertEquals(3, local.autoSnoozeCount(id))
-        // Ring 4 → count≥3: Tomorrow (same wall-clock, +1 day), counter cleared
+        // Ring 4 → count≥3: Tomorrow at the time the alarm was set for (not the snoozed 10:30), counter cleared
         clock.now = t("2026-10-05T10:30")
         store.autoSnooze(InstanceKey(id, t("2026-10-05T10:30")), clock.millis())
-        assertEquals(t("2026-10-06T10:30"), cal.event(id)!!.dtStart)
+        assertEquals(t("2026-10-06T09:00"), cal.event(id)!!.dtStart)
         assertEquals(0, local.autoSnoozeCount(id))
     }
 

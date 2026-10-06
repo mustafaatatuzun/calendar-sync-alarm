@@ -82,4 +82,14 @@ class RoomLocalStoreTest {
         store.recordCreation(480, 50)
         assertEquals(listOf(450 to 100L), store.creationHistory(60))
     }
+
+    @Test
+    fun snoozeOrigin_roundTrip_overwrite_andClear() {
+        assertNull(store.snoozeOrigin(7))
+        store.setSnoozeOrigin(7, 1_000)
+        store.setSnoozeOrigin(7, 2_000)
+        assertEquals(2_000L, store.snoozeOrigin(7))
+        store.clearSnoozeOrigin(7)
+        assertNull(store.snoozeOrigin(7))
+    }
 }

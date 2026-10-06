@@ -6,6 +6,14 @@ data class Release(val version: String, val date: String, val changes: List<Stri
 object Changelog {
     val releases = listOf(
         Release(
+            "0.3.1", "2026-10-06",
+            listOf(
+                "Fixed: after snoozing, \"Tomorrow\" moves the alarm to tomorrow at the time you set it for " +
+                    "(e.g. 10:00), not at the snoozed time (e.g. 11:30). The same applies when an unanswered " +
+                    "alarm moves itself to tomorrow.",
+            ),
+        ),
+        Release(
             "0.3", "2026-10-06",
             listOf(
                 "WhatsApp: pick a person to message for an alarm. A green chat icon on the alarm card and a " +

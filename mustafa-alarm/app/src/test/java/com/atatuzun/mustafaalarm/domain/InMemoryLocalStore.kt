@@ -30,4 +30,9 @@ class InMemoryLocalStore : LocalStore {
     override fun autoSnoozeCount(alarmId: Long): Int = autoSnoozeCounters.getOrDefault(alarmId, 0)
     override fun incrementAutoSnooze(alarmId: Long) { autoSnoozeCounters[alarmId] = autoSnoozeCount(alarmId) + 1 }
     override fun clearAutoSnooze(alarmId: Long) { autoSnoozeCounters.remove(alarmId) }
+
+    private val snoozeOrigins = mutableMapOf<Long, Long>()
+    override fun snoozeOrigin(eventId: Long): Long? = snoozeOrigins[eventId]
+    override fun setSnoozeOrigin(eventId: Long, originalBegin: Long) { snoozeOrigins[eventId] = originalBegin }
+    override fun clearSnoozeOrigin(eventId: Long) { snoozeOrigins.remove(eventId) }
 }

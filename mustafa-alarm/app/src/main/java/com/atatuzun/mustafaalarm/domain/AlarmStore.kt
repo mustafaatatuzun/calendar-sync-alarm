@@ -107,6 +107,7 @@ class AlarmStore(
             ),
         )
         local.setSound(eventId, input.soundUri)
+        local.clearSnoozeOrigin(eventId)
         log("updated alarm $eventId")
         return SaveResult.Saved(eventId, timing.start)
     }
@@ -114,11 +115,13 @@ class AlarmStore(
     fun delete(eventId: Long) {
         calendar.deleteEvent(eventId)
         local.setSound(eventId, null)
+        local.clearSnoozeOrigin(eventId)
         log("deleted alarm $eventId")
     }
 
     fun setEnabled(eventId: Long, on: Boolean) {
         val event = calendar.event(eventId) ?: return
+        local.clearSnoozeOrigin(eventId)
         val color = if (on) ColorPatch.DEFAULT else ColorPatch.GRAPHITE
         if (event.isSeries) {
             calendar.updateEvent(eventId, EventPatch(color = color))
@@ -273,12 +276,26 @@ class AlarmStore(
 
     private fun applyToCalendar(key: InstanceKey, action: RingAction, pressedAt: Long) {
         val event = calendar.event(key.eventId) ?: return // deleted while ringing: nothing to change
+        val oneOff = !event.isSeries && !event.isException
         when (action) {
-            RingAction.SNOOZE -> moveOccurrence(event, key, snoozeTime(pressedAt))
+            RingAction.SNOOZE -> {
+                // A snooze moves a one-off itself; remember where it started so "Tomorrow" can go back to it.
+                if (oneOff && local.snoozeOrigin(event.id) == null) local.setSnoozeOrigin(event.id, key.begin)
+                moveOccurrence(event, key, snoozeTime(pressedAt))
+            }
             RingAction.TOMORROW -> moveToTomorrow(event, key)
-            RingAction.STOP ->
-                if (!event.isSeries && !event.isException) calendar.updateEvent(event.id, EventPatch(color = ColorPatch.GRAPHITE))
+            RingAction.STOP -> {
+                if (oneOff) calendar.updateEvent(event.id, EventPatch(color = ColorPatch.GRAPHITE))
+                local.clearSnoozeOrigin(event.id)
+            }
         }
+    }
+
+    /** When this occurrence was meant to ring before any snooze moved it. */
+    private fun originalStart(event: EventRow, key: InstanceKey): Long = when {
+        event.isException -> event.originalInstanceTime ?: key.begin
+        event.isSeries -> key.begin
+        else -> local.snoozeOrigin(event.id) ?: key.begin
     }
 
     private fun moveOccurrence(event: EventRow, key: InstanceKey, newStart: Long) {
@@ -292,9 +309,10 @@ class AlarmStore(
     }
 
     private fun moveToTomorrow(event: EventRow, key: InstanceKey) {
-        val newStart = Times.plusDays(key.begin, 1, zone)
+        val newStart = Times.plusDays(originalStart(event, key), 1, zone)
         if (!event.isSeries && !event.isException) {
             moveOccurrence(event, key, newStart)
+            local.clearSnoozeOrigin(event.id)
             return
         }
         val seriesId = event.originalId ?: event.id
@@ -329,7 +347,7 @@ class AlarmStore(
     private fun fallbackEntry(key: InstanceKey, action: RingAction, pressedAt: Long): CachedOccurrence? {
         val at = when (action) {
             RingAction.SNOOZE -> snoozeTime(pressedAt)
-            RingAction.TOMORROW -> Times.plusDays(key.begin, 1, zone)
+            RingAction.TOMORROW -> Times.plusDays(local.snoozeOrigin(key.eventId) ?: key.begin, 1, zone)
             RingAction.STOP -> return null
         }
         val known = local.ringing().firstOrNull { it.key == key }?.let { it.alarmId to it.title }
