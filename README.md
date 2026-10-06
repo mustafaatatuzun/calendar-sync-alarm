@@ -17,8 +17,10 @@ Simple Alarm by Base Juegos is a good alarm app, but it has no PC-side editor. G
 
 ## Features
 
-- **Full-screen ringing** over the lock screen (with the right system permissions enabled during setup).
+- **Full-screen ringing** over the lock screen and over whatever app you're using (with the right system permissions enabled during setup).
 - **Three-tap Stop** and **three-tap Delete** on the ringing screen so a fat finger can't dismiss the alarm — the delete button also removes the underlying Google Calendar event.
+- **Edit the alarm message while it rings** — the change lands on the Google Calendar event too.
+- **Call someone from the alarm** — attach a contact's number to an alarm; while it rings, a big "Call <name>" button opens the dialer with the number filled in (the alarm keeps ringing until you stop it). The number is stored as a `Call: <name> | <number>` line in the event description, so it also syncs. No contacts permission needed.
 - **Google Calendar as the backing store** — the app owns a dedicated "Alarms" calendar on your Google account. Every event in it is an alarm. Any event you add from a PC browser becomes an alarm.
 - **Google Calendar's recurrence shapes:** Does not repeat / Daily / Every weekday / Weekly on selected days / Monthly on day N / Monthly on the Nth weekday / Annually.
 - **Reinstall-safe:** alarms survive uninstall. The setup flow finds the existing "Alarms" calendar on your Google account and skips sign-in when it does.
@@ -37,7 +39,8 @@ The APK is **debug-signed with a project keystore that is not published**. You'l
 1. **Setup** walks you through a few permissions.
 2. **Google sign-in** — the app asks for Calendar access. It only uses `calendar.app.created` (can create one calendar; cannot read your other calendars). The "Alarms" calendar is created or found during this step.
 3. **Full-screen alarms permission** — on Samsung the toggle may already look turned on but is actually in the system's default (reject) state. The app's setup step tells you to flip it off and back on to confirm it.
-4. **Battery: Unrestricted** — so the alarm fires even after Doze.
+4. **Show over other apps** (Samsung: "Appear on top") — without it, an alarm that rings while you're using the phone only shows a small pop-up, because Android blocks the full-screen launch.
+5. **Battery: Unrestricted** — so the alarm fires even after Doze.
 
 That's it. Your "Alarms" calendar is now the single place to add/edit alarms, from the phone or from a PC browser.
 
