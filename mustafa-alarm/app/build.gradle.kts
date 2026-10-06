@@ -20,8 +20,8 @@ android {
         applicationId = "com.atatuzun.mustafaalarm"
         minSdk = 36
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1"
+        versionCode = 2
+        versionName = "0.2"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         val serverClientId = providers.gradleProperty("mustafaAlarm.serverClientId").getOrElse("")
         buildConfigField("String", "GOOGLE_SERVER_CLIENT_ID", "\"$serverClientId\"")
