@@ -164,6 +164,18 @@ class AlarmStoreRingTest {
     }
 
     @Test
+    fun stop_afterSnoozes_oneOff_goesBackToTheOriginalTime_greyed() {
+        val id = oneOff("2026-10-05T09:00")
+        snoozeAt(id, "2026-10-05T09:00") // → 09:30
+        snoozeAt(id, "2026-10-05T09:30") // → 10:00
+        store.stop(key(id, "2026-10-05T10:00"), t("2026-10-05T10:00"))
+        val e = cal.event(id)!!
+        assertEquals(t("2026-10-05T09:00"), e.dtStart)
+        assertEquals(t("2026-10-05T09:15"), e.dtEnd)
+        assertTrue(e.isOff)
+    }
+
+    @Test
     fun stop_afterSnoozes_forgetsTheOriginalTime() {
         val id = oneOff("2026-10-05T09:00")
         snoozeAt(id, "2026-10-05T09:00")

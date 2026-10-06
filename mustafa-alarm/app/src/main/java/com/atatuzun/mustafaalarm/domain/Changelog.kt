@@ -6,6 +6,13 @@ data class Release(val version: String, val date: String, val changes: List<Stri
 object Changelog {
     val releases = listOf(
         Release(
+            "0.3.2", "2026-10-06",
+            listOf(
+                "Stop after snoozing puts the alarm back at the time you set it for (greyed out), so switching " +
+                    "it on again later rings at that time, not at the last snoozed time.",
+            ),
+        ),
+        Release(
             "0.3.1", "2026-10-06",
             listOf(
                 "Fixed: after snoozing, \"Tomorrow\" moves the alarm to tomorrow at the time you set it for " +

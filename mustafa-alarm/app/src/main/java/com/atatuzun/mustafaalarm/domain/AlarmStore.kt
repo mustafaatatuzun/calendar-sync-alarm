@@ -285,7 +285,11 @@ class AlarmStore(
             }
             RingAction.TOMORROW -> moveToTomorrow(event, key)
             RingAction.STOP -> {
-                if (oneOff) calendar.updateEvent(event.id, EventPatch(color = ColorPatch.GRAPHITE))
+                if (oneOff) {
+                    // Done for today: grey it out at the time it was set for, not where snoozes left it.
+                    val back = local.snoozeOrigin(event.id)?.let { EventTiming.Single(it, it + event.lengthMillis) }
+                    calendar.updateEvent(event.id, EventPatch(color = ColorPatch.GRAPHITE, timing = back))
+                }
                 local.clearSnoozeOrigin(event.id)
             }
         }
