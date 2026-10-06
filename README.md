@@ -1,6 +1,6 @@
-# Calendar SYNC Alarm
+# Simple Alarm for Android with Google Calendar — call or WhatsApp from the alarm
 
-An Android alarm clock that uses your **Google Calendar as the alarm source of truth**.
+**Calendar SYNC Alarm** is a simple alarm clock app for Android with **Google Calendar integration**: your **Google Calendar is the alarm source of truth**. Attach a contact to an alarm and **call them (dialer)** or **send them a WhatsApp message** straight from the ringing alarm.
 
 Set alarms on your PC in Google Calendar web, they ring on your phone. Edit them on your phone, they update on Google. One personal "Alarms" calendar on your Google account becomes the backing store — nothing is kept locally that you can't restore from Google.
 
@@ -20,7 +20,10 @@ Simple Alarm by Base Juegos is a good alarm app, but it has no PC-side editor. G
 - **Full-screen ringing** over the lock screen and over whatever app you're using (with the right system permissions enabled during setup).
 - **Three-tap Stop** and **three-tap Delete** on the ringing screen so a fat finger can't dismiss the alarm — the delete button also removes the underlying Google Calendar event.
 - **Edit the alarm message while it rings** — the change lands on the Google Calendar event too.
-- **Call someone from the alarm** — attach a contact's number to an alarm; while it rings, a big "Call <name>" button opens the dialer with the number filled in (the alarm keeps ringing until you stop it). The number is stored as a `Call: <name> | <number>` line in the event description, so it also syncs. No contacts permission needed.
+- **Call someone from the alarm** — attach a contact's number to an alarm; while it rings, a big "Call <name>" button opens the dialer with the number filled in (the alarm keeps ringing until you stop it). A phone icon on the alarm card does the same any time. The number is stored as a `Call: <name> | <number>` line in the event description, so it also syncs. No contacts permission needed.
+- **Send a WhatsApp message from the alarm** — pick a person to message (separately from the one to call); a green chat icon on the alarm card and a "WhatsApp <name>" button on the ringing screen open that WhatsApp chat directly (stored as a `WhatsApp: <name> | <number>` line). Works with Samsung Dual Messenger without asking which WhatsApp every time.
+- **Mute with the volume button** — press volume up or down while it rings to silence sound and vibration so you can read the alarm quietly; then Snooze or Stop. Works over the lock screen and from other apps.
+- **About screen** — Settings → About shows the version and a "What's new" list.
 - **Google Calendar as the backing store** — the app owns a dedicated "Alarms" calendar on your Google account. Every event in it is an alarm. Any event you add from a PC browser becomes an alarm.
 - **Google Calendar's recurrence shapes:** Does not repeat / Daily / Every weekday / Weekly on selected days / Monthly on day N / Monthly on the Nth weekday / Annually.
 - **Reinstall-safe:** alarms survive uninstall. The setup flow finds the existing "Alarms" calendar on your Google account and skips sign-in when it does.
@@ -30,7 +33,7 @@ Simple Alarm by Base Juegos is a good alarm app, but it has no PC-side editor. G
 
 ## Install
 
-Grab the latest APK from the [`releases/`](releases/) folder or from the GitHub Releases page and sideload it.
+Grab the latest APK from the [Releases page](https://github.com/mustafaatatuzun/simple-alarm-android-google-calendar/releases/latest) and sideload it. Installing a newer APK over an older one keeps your alarms and settings.
 
 The APK is **debug-signed with a project keystore that is not published**. You'll see a signing-authority warning on first install — that's expected for sideloaded apps. If you'd rather build it yourself, see "Build" below.
 
@@ -51,8 +54,8 @@ That's it. Your "Alarms" calendar is now the single place to add/edit alarms, fr
 # 1. Install JDK 17 (Microsoft OpenJDK is fine)
 # 2. Install Android Studio or the standalone Android SDK; set ANDROID_HOME
 # 3. Clone and build
-git clone https://github.com/mustafaatatuzun/calendar-sync-alarm.git
-cd calendar-sync-alarm\mustafa-alarm
+git clone https://github.com/mustafaatatuzun/simple-alarm-android-google-calendar.git
+cd simple-alarm-android-google-calendar\mustafa-alarm
 .\gradlew.bat :app:assembleRelease
 # APKs land in app\build\outputs\apk\release\
 ```
