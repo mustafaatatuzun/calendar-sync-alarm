@@ -206,6 +206,7 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
                             originalInstanceTime = c.getLongOrNull(10),
                             timeZone = c.getStringOrNull(11),
                             description = c.getStringOrNull(12),
+                            syncId = c.getStringOrNull(13),
                         ),
                     )
                 }
@@ -249,7 +250,10 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
         }
     }
 
-    /** Exceptions get only DTSTART/DTEND: an RRULE or DURATION key would make the provider split the series. */
+    /**
+     * Exceptions get only DTSTART. The provider refuses DTEND ("Exceptions can't overwrite dtend") and sets it
+     * from the series' DURATION itself; an RRULE or DURATION key would make it split the series.
+     */
     private fun ContentValues.putPatch(patch: EventPatch, forException: Boolean) {
         patch.title?.let { put(Events.TITLE, it) }
         patch.description?.let { put(Events.DESCRIPTION, it) }
@@ -258,7 +262,6 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
             if (forException) {
                 require(timing is EventTiming.Single) { "an exception is a single occurrence" }
                 put(Events.DTSTART, timing.start)
-                put(Events.DTEND, timing.end)
             } else {
                 putTiming(timing)
             }
@@ -286,6 +289,7 @@ class ProviderCalendarAccess(private val resolver: ContentResolver) : CalendarAc
             Events._ID, Events.TITLE, Events.DTSTART, Events.DTEND, Events.DURATION, Events.RRULE,
             Events.ALL_DAY, Events.EVENT_COLOR_KEY, Events.STATUS,
             Events.ORIGINAL_ID, Events.ORIGINAL_INSTANCE_TIME, Events.EVENT_TIMEZONE, Events.DESCRIPTION,
+            Events._SYNC_ID,
         )
         val CALENDAR_COLUMNS = arrayOf(
             Calendars._ID, Calendars.ACCOUNT_NAME, Calendars.ACCOUNT_TYPE,

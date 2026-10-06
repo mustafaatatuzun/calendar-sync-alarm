@@ -26,6 +26,8 @@ data class EventRow(
     val originalInstanceTime: Long?,
     val timeZone: String?,
     val description: String? = null,
+    /** Google's id for the event; null until the sync adapter has uploaded it. */
+    val syncId: String? = null,
 ) {
     val isSeries: Boolean get() = !rrule.isNullOrBlank()
     val isException: Boolean get() = originalId != null

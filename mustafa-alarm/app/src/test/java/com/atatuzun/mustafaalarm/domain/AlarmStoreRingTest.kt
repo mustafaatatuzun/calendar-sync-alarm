@@ -105,6 +105,30 @@ class AlarmStoreRingTest {
     }
 
     @Test
+    fun snooze_unsyncedSeries_waitsInPending_ringsLocally_thenAppliesOnceSynced() {
+        cal.syncNewEvents = false
+        val id = series("2026-10-05T09:00", "FREQ=WEEKLY;BYDAY=MO,WE")
+        store.snooze(key(id, "2026-10-05T09:00"), clock.millis())
+        assertTrue("no exception before the series has a sync id", cal.events.values.none { it.originalId == id })
+        assertEquals(1, local.pending.size)
+        assertTrue(local.ringCache().any { it.key == key(id, "2026-10-05T09:30") })
+
+        cal.markSynced(id)
+        store.applyPending()
+        assertTrue(local.pending.isEmpty())
+        assertEquals(t("2026-10-05T09:30"), cal.events.values.single { it.originalId == id }.dtStart)
+    }
+
+    @Test
+    fun tomorrow_unsyncedDailySeries_doesNotCancelYet() {
+        cal.syncNewEvents = false
+        val id = series("2026-10-05T09:00", "FREQ=DAILY")
+        store.tomorrow(key(id, "2026-10-05T09:00"), clock.millis())
+        assertTrue(cal.events.values.none { it.originalId == id })
+        assertEquals(1, local.pending.size)
+    }
+
+    @Test
     fun stop_oneOff_greysItAtItsTime() {
         val id = oneOff("2026-10-05T09:00")
         store.stop(key(id, "2026-10-05T09:00"), clock.millis())

@@ -1,6 +1,8 @@
 package com.atatuzun.mustafaalarm.data
 
 import android.Manifest
+import android.content.ContentUris
+import android.content.ContentValues
 import android.provider.CalendarContract
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -15,8 +17,8 @@ import com.atatuzun.mustafaalarm.domain.GRAPHITE_COLOR_KEY
 import com.atatuzun.mustafaalarm.domain.HOUR
 import com.atatuzun.mustafaalarm.domain.InstanceKey
 import com.atatuzun.mustafaalarm.domain.MINUTE
+import com.atatuzun.mustafaalarm.domain.RecurrenceRule
 import com.atatuzun.mustafaalarm.domain.Times
-import com.atatuzun.mustafaalarm.domain.WeeklyRule
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,6 +51,17 @@ class ProviderCalendarAccessTest {
     private fun active(from: Long, to: Long) = access.instances(cal, from, to).filter { it.isActive }
     private fun dailyAt10(count: Int = 3) =
         access.insertEvent(cal, "Daily", EventTiming.Recurring(at(tomorrow, 10), "FREQ=DAILY;COUNT=$count", "PT15M"), zone.id)
+            .also(::markSynced)
+
+    /** What Google's sync adapter does after upload; exceptions need it (see AlarmStore.requireSynced). */
+    private fun markSynced(id: Long) {
+        val uri = ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, id).buildUpon()
+            .appendQueryParameter(CalendarContract.CALLER_IS_SYNCADAPTER, "true")
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_NAME, LocalCalendars.ACCOUNT_NAME)
+            .appendQueryParameter(CalendarContract.Calendars.ACCOUNT_TYPE, CalendarContract.ACCOUNT_TYPE_LOCAL)
+            .build()
+        resolver.update(uri, ContentValues().apply { put(CalendarContract.Events._SYNC_ID, "test-sync-$id") }, null, null)
+    }
 
     @Before fun setUp() { cal = LocalCalendars.create(resolver, "ma-test-${System.nanoTime()}") }
     @After fun tearDown() { LocalCalendars.delete(resolver, cal) }
@@ -71,8 +84,8 @@ class ProviderCalendarAccessTest {
     @Test
     fun weeklySeries_expandsOnItsDays() {
         val first = Times.firstWeeklyStart(setOf(MONDAY, WEDNESDAY), LocalTime.of(8, 0), System.currentTimeMillis(), zone)
-        val id = access.insertEvent(cal, "Weekly", EventTiming.Recurring(first, WeeklyRule.build(setOf(MONDAY, WEDNESDAY)), "PT15M"), zone.id)
-        val rows = active(first, first + 14 * DAY)
+        val id = access.insertEvent(cal, "Weekly", EventTiming.Recurring(first, RecurrenceRule.Weekly(setOf(MONDAY, WEDNESDAY)).build()!!, "PT15M"), zone.id)
+        val rows = active(first, first + 14 * DAY - 1) // Instances' end bound is inclusive
         assertEquals(4, rows.size)
         assertTrue(rows.all { it.eventId == id && Times.localDate(it.begin, zone).dayOfWeek in setOf(MONDAY, WEDNESDAY) })
         assertEquals("FREQ=WEEKLY;BYDAY=MO,WE", access.event(id)!!.rrule)
@@ -112,6 +125,8 @@ class ProviderCalendarAccessTest {
         val exRow = access.event(ex)!!
         assertEquals(id, exRow.originalId)
         assertEquals(second, exRow.originalInstanceTime)
+        assertEquals("the provider sets DTEND from the series DURATION", second + 45 * MINUTE, exRow.dtEnd)
+        assertEquals("test-sync-$id", access.event(id)!!.syncId)
         assertEquals(id, active(second, second + HOUR).single().alarmId)
     }
 

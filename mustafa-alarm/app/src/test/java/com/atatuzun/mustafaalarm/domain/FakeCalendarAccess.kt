@@ -10,7 +10,13 @@ class FakeCalendarAccess(private val defaultZone: ZoneId = ZONE) : CalendarAcces
     val events = linkedMapOf<Long, EventRow>()
     var exists = true
     var failWrites = false
+    /** Google-synced calendars give new events a sync id; false mimics a series not yet uploaded. */
+    var syncNewEvents = true
     private var nextId = 100L
+
+    fun markSynced(eventId: Long) {
+        events[eventId]?.let { events[eventId] = it.copy(syncId = "sync-$eventId") }
+    }
 
     override fun calendarExists(calendarId: Long) = exists && calendarId == CAL
     override fun events(calendarId: Long): List<EventRow> = events.values.toList()
@@ -19,7 +25,10 @@ class FakeCalendarAccess(private val defaultZone: ZoneId = ZONE) : CalendarAcces
     override fun insertEvent(calendarId: Long, title: String, timing: EventTiming, zone: String, description: String?): Long {
         checkWritable()
         val id = nextId++
-        events[id] = EventRow(id, title, timing.start, null, null, null, false, null, null, null, null, zone, description).withTiming(timing)
+        events[id] = EventRow(
+            id, title, timing.start, null, null, null, false, null, null, null, null, zone, description,
+            syncId = if (syncNewEvents) "sync-$id" else null,
+        ).withTiming(timing)
         return id
     }
 
@@ -98,7 +107,7 @@ class FakeCalendarAccess(private val defaultZone: ZoneId = ZONE) : CalendarAcces
         duration: String = "PT15M",
     ): Long {
         val id = nextId++
-        events[id] = EventRow(id, title, start, null, rrule, duration, false, null, null, null, null, "UTC")
+        events[id] = EventRow(id, title, start, null, rrule, duration, false, null, null, null, null, "UTC", syncId = "sync-$id")
         return id
     }
 

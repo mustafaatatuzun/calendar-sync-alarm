@@ -280,6 +280,7 @@ class AlarmStore(
     private fun moveOccurrence(event: EventRow, key: InstanceKey, newStart: Long) {
         val timing = EventTiming.Single(newStart, newStart + event.lengthMillis)
         if (event.isSeries) {
+            requireSynced(event)
             calendar.insertException(event.id, key.begin, EventPatch(timing = timing))
         } else {
             calendar.updateEvent(event.id, EventPatch(timing = timing))
@@ -302,10 +303,21 @@ class AlarmStore(
         } ?: false
         when {
             !tomorrowHasOne -> moveOccurrence(event, key, newStart)
-            event.isSeries -> calendar.insertException(event.id, key.begin, EventPatch(canceled = true))
+            event.isSeries -> {
+                requireSynced(event)
+                calendar.insertException(event.id, key.begin, EventPatch(canceled = true))
+            }
             else -> calendar.updateEvent(event.id, EventPatch(canceled = true))
         }
     }
+
+    /**
+     * The calendar provider links an exception to its series by the series' sync id; without one it stops
+     * listing the series' other occurrences. Throwing keeps the action pending (it still rings locally at
+     * its new time) until the series has been uploaded to Google.
+     */
+    private fun requireSynced(series: EventRow) =
+        check(series.syncId != null) { "series ${series.id} not synced yet" }
 
     private fun snoozeTime(pressedAt: Long): Long = Times.floorMinute(pressedAt) + snoozeMinutes() * MINUTE
 
